@@ -1,6 +1,8 @@
-# 550C Boot Sequence
+# 550C 操作台（550C Console）
 
-> 550C 无人机基站开机动画，作为 KiraAI 面板插件页接入。
+> 550C 无人机基站开机动画 + 实时状态操作台，作为 KiraAI 面板插件页接入。
+
+仓库：https://github.com/kingzhen1/550c-console
 
 把 [Voidpoket] 的 550C 单页动画接进 KiraAI 面板：动画结束后展示适配器与主机实时状态，
 收起待机时保留 550C 动态台标，并可随时拉出当日报错列表框与用量/金额视图。
