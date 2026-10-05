@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>550C 开机动画控制台</title>
+<style>
+  :root{
+    --ink:#0b0b0d; --ink-2:#111114; --line:#232329; --line-2:#2e2e36;
+    --fg:#e7e7ea; --fg-2:#9a9aa4; --fg-3:#6a6a74;
+    --amber:#e8a020; --amber-soft:rgba(232,160,32,.14);
+    --green:#7ee06a; --cyan:#4fd1c5; --white:#d6d6d6;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--ink);color:var(--fg);
+    font:13px/1.5 "SF Mono",Menlo,Consolas,"Microsoft YaHei",monospace;
+    display:flex;flex-direction:column;overflow:hidden;}
+  header{display:flex;align-items:center;gap:14px;padding:12px 16px;
+    border-bottom:1px solid var(--line);background:var(--ink-2);flex:0 0 auto;}
+  .brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+  .brand b{font-size:14px;letter-spacing:.16em;font-weight:600}
+  .brand span{color:var(--fg-3);font-size:11px;letter-spacing:.18em}
+  .pill{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--fg-2);
+    border:1px solid var(--line-2);border-radius:999px;padding:4px 12px;font-size:11px;letter-spacing:.08em}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--fg-3);transition:background .3s}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .dot.run{background:var(--amber);box-shadow:0 0 8px var(--amber);animation:blink 1.1s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:.35}50%{opacity:1}}
+
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:10px 16px;
+    border-bottom:1px solid var(--line);background:var(--ink-2);flex:0 0 auto}
+  .group{display:flex;align-items:center;gap:8px}
+  .group>label{color:var(--fg-3);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+  .seg{display:flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--fg-2);padding:6px 12px;cursor:pointer;
+    font:inherit;font-size:12px;transition:.18s}
+  .seg button+button{border-left:1px solid var(--line-2)}
+  .seg button:hover{color:var(--fg);background:#18181d}
+  .seg button.active{background:var(--amber-soft);color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
+  .swatch{width:22px;height:22px;border-radius:6px;border:2px solid transparent;cursor:pointer;
+    background:#000;position:relative;transition:.18s}
+  .swatch:hover{transform:translateY(-1px)}
+  .swatch.active{border-color:var(--fg);box-shadow:0 0 0 3px #000 inset}
+  .swatch i{position:absolute;inset:5px;border-radius:3px;background:currentColor;display:block}
+  .swatch[data-scheme=amber]{color:var(--amber)}
+  .swatch[data-scheme=green]{color:var(--green)}
+  .swatch[data-scheme=cyan]{color:var(--cyan)}
+  .swatch[data-scheme=white]{color:var(--white)}
+  .toggle{display:flex;align-items:center;gap:8px;color:var(--fg-2);cursor:pointer;font-size:12px}
+  .toggle input{appearance:none;width:34px;height:18px;border-radius:99px;background:#26262e;
+    border:1px solid var(--line-2);position:relative;cursor:pointer;transition:.2s;margin:0}
+  .toggle input::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;
+    background:var(--fg-3);transition:.2s}
+  .toggle input:checked{background:var(--amber-soft);border-color:var(--amber)}
+  .toggle input:checked::after{left:18px;background:var(--amber)}
+  input[type=range]{width:110px;accent-color:var(--amber);background:transparent}
+  .num{color:var(--fg-2);font-size:11px;min-width:34px}
+  .spacer{flex:1 1 auto}
+  .btn{background:#1a1a20;border:1px solid var(--line-2);color:var(--fg);border-radius:8px;
+    padding:6px 14px;cursor:pointer;font:inherit;font-size:12px;transition:.18s}
+  .btn:hover{background:#23232b;border-color:#3a3a44}
+  .btn.primary{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+  .btn.primary:hover{background:rgba(232,160,32,.2)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.active{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+
+  main{flex:1 1 auto;position:relative;background:#000;min-height:0}
+  iframe{width:100%;height:100%;border:0;display:block;background:#000}
+  footer{flex:0 0 auto;display:flex;gap:16px;padding:8px 16px;border-top:1px solid var(--line);
+    background:var(--ink-2);color:var(--fg-3);font-size:11px;letter-spacing:.06em}
+  #toast{position:fixed;right:16px;bottom:44px;display:flex;flex-direction:column;gap:8px;z-index:99}
+  .toast{background:#1a1a20;border:1px solid var(--line-2);border-left:3px solid var(--amber);
+    border-radius:6px;padding:8px 14px;color:var(--fg);font-size:12px;opacity:0;transform:translateY(6px);
+    transition:.25s;max-width:280px}
+  .toast.show{opacity:1;transform:none}
+  .toast.err{border-left-color:#e05030}
+
+  /* ===== 当日报错列表框（主区中间） ===== */
+  .btn .cnt{margin-left:6px;font-size:10px;color:var(--fg-3);font-variant-numeric:tabular-nums}
+  .btn .cnt.bad{color:#e05030}
+  .btn .cnt.warn{color:var(--amber)}
+  .errs{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%) scale(.985);z-index:6;
+    width:min(760px,94%);max-height:min(58%,540px);
+    display:flex;flex-direction:column;
+    background:linear-gradient(180deg,rgba(12,12,15,.965),rgba(8,8,11,.94));
+    border:1px solid var(--line-2);border-radius:12px;box-shadow:0 20px 56px rgba(0,0,0,.6);
+    opacity:0;pointer-events:none;transition:opacity .24s ease,transform .24s ease}
+  .errs.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+  .er-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex:0 0 auto}
+  .er-head b{font-size:12px;letter-spacing:.18em;white-space:nowrap}
+  .er-head .meta{color:var(--fg-3);font-size:11px;white-space:nowrap}
+  .er-head .cnt{font-variant-numeric:tabular-nums}
+  .er-head .cnt.bad{color:#e05030}
+  .er-head .cnt.warn{color:var(--amber)}
+  .er-body{flex:1 1 auto;overflow:auto;padding:4px 0 8px;min-height:96px}
+  .er-row{display:grid;grid-template-columns:62px 46px 1fr;gap:10px;padding:6px 14px;
+    border-bottom:1px solid #16161b;font-size:11.5px;align-items:start}
+  .er-row:hover{background:#121217}
+  .er-row .tm{color:var(--fg-3);font-variant-numeric:tabular-nums}
+  .er-body.tv .er-row{grid-template-columns:128px 46px 1fr}
+  @media (max-width:600px){
+    .errs{width:96%;top:54%;max-height:62%}
+    .er-row{grid-template-columns:64px 1fr}
+    .er-row .lv{display:none}
+    .er-body.tv .er-row{grid-template-columns:104px 1fr}
+    .er-head{gap:8px;padding:10px 12px}
+    .er-head .meta{display:none}
+  }
+  .er-row .tm .d{font-style:normal;opacity:.58;font-size:10px;margin-right:4px}
+  .er-row .lv{font-size:9.5px;letter-spacing:.06em;text-align:center;border-radius:4px;
+    padding:1px 0;border:1px solid var(--line-2);color:var(--fg-3)}
+  .er-row .lv.e{color:#e05030;border-color:rgba(224,80,48,.45);background:rgba(224,80,48,.08)}
+  .er-row .lv.w{color:var(--amber);border-color:rgba(232,160,32,.45);background:var(--amber-soft)}
+  .er-row .tx{min-width:0;word-break:break-word}
+  .er-row .tx em{font-style:normal;color:var(--cyan)}
+  .er-row.has .tx{cursor:pointer}
+  .er-stack{margin:5px 0 0;padding-left:8px;border-left:2px solid var(--line-2);display:none;
+    color:var(--fg-3);font-size:10.5px;white-space:pre-wrap;word-break:break-all}
+  .er-row.open .er-stack{display:block}
+  .er-row.grp{cursor:pointer;background:#101014}
+  .er-row.grp:hover{background:#15151b}
+  .er-row.grp .tm{color:var(--fg);font-size:11px}
+  .er-sub{color:var(--fg-3);font-size:10.5px;margin-top:3px;font-variant-numeric:tabular-nums}
+  .er-sub b{color:var(--fg-2);font-weight:400}
+  .er-one{display:grid;grid-template-columns:58px 1fr;gap:8px;color:var(--fg-3);font-size:10.5px;
+    padding:3px 0;border-top:1px dashed #1c1c22}
+  .er-one:first-child{border-top:0}
+  .er-one .tm{font-variant-numeric:tabular-nums}
+  .er-one .tx2{min-width:0;word-break:break-word;color:var(--fg-2)}
+  .er-detail{margin:2px 0 4px;padding-left:8px;border-left:2px solid var(--line-2);
+    color:var(--fg-3);font-size:10.5px;white-space:pre-wrap;word-break:break-all}
+  .er-empty{color:var(--fg-3);font-size:11.5px;padding:14px}
+  /* ===== 每条报错下面的“怎么办” ===== */
+  .fx-wrap{margin-top:5px}
+  .sol-btn{display:inline-flex;align-items:center;gap:5px;background:transparent;
+    border:1px solid rgba(232,160,32,.38);color:var(--amber);border-radius:6px;
+    padding:2px 9px;font:inherit;font-size:10.5px;letter-spacing:.04em;cursor:pointer;transition:.18s}
+  .sol-btn:hover{background:var(--amber-soft);border-color:var(--amber)}
+  .sol-btn.open{background:var(--amber-soft);border-color:var(--amber)}
+  .er-fix{display:none;margin-top:7px;padding:9px 12px;border-left:2px solid var(--amber);
+    background:rgba(232,160,32,.05);border-radius:0 8px 8px 0;color:var(--fg-2);
+    font-size:11px;max-width:660px}
+  .er-fix.show{display:block}
+  .er-fix .fx-ttl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--fg);font-size:11.5px}
+  .er-fix .fx-tag{font-size:9.5px;letter-spacing:.08em;padding:1px 6px;border-radius:4px;
+    border:1px solid var(--line-2);color:var(--fg-3)}
+  .er-fix .fx-tag.noise{color:var(--green);border-color:rgba(126,224,106,.4)}
+  .er-fix .fx-tag.cfg{color:var(--amber);border-color:rgba(232,160,32,.45)}
+  .er-fix .fx-tag.env{color:var(--cyan);border-color:rgba(79,209,197,.4)}
+  .er-fix .fx-tag.code{color:#e05030;border-color:rgba(224,80,48,.45)}
+  .er-fix .fx-why{margin-top:6px;color:var(--fg-3);line-height:1.7}
+  .er-fix ol{counter-reset:fx;list-style:none;margin:7px 0 0;padding:0;
+    display:flex;flex-direction:column;gap:5px}
+  .er-fix ol li{position:relative;padding-left:21px;line-height:1.65}
+  .er-fix ol li::before{counter-increment:fx;content:counter(fx);position:absolute;left:0;top:3px;
+    width:14px;height:14px;border-radius:50%;border:1px solid var(--line-2);color:var(--fg-3);
+    font-size:9px;display:flex;align-items:center;justify-content:center;line-height:1}
+  .er-fix code{background:#1a1a20;border:1px solid var(--line-2);border-radius:4px;
+    padding:0 4px;color:var(--fg);font-size:10.5px}
+  /* ===== 面板都收起来时的 550C 动态 logo ===== */
+  /* 全部收起时：动画层直接撤掉，背景纯黑，只留中间那个 logo */
+  iframe{transition:opacity .32s ease}
+  main.idle iframe{opacity:0;visibility:hidden}
+  main.idle{background:#000}
+  .idle-logo{--idle:#e8a020;--idle-2:rgba(232,160,32,.9);--idle-dim:rgba(232,160,32,.16);
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);z-index:3;
+    display:flex;flex-direction:column;align-items:center;gap:16px;pointer-events:none;padding:40px 70px;background:radial-gradient(circle at 50% 46%,rgba(0,0,0,.94),rgba(0,0,0,.86) 50%,rgba(0,0,0,0) 82%);
+    opacity:0;transition:opacity .45s ease,transform .45s ease}
+  .idle-logo.scheme-white{--idle:#d6d6d6;--idle-2:rgba(214,214,214,.9);--idle-dim:rgba(214,214,214,.14)}
+  .idle-logo.scheme-cyan{--idle:#4fd1c5;--idle-2:rgba(79,209,197,.9);--idle-dim:rgba(79,209,197,.16)}
+  .idle-logo.scheme-green{--idle:#7ee06a;--idle-2:rgba(126,224,106,.9);--idle-dim:rgba(126,224,106,.16)}
+  .idle-logo.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .dial{position:relative;width:148px;height:148px;display:grid;place-items:center}
+  .dial::before{content:"";position:absolute;inset:0;border-radius:50%;border:1px solid var(--idle-dim)}
+  .dial::after{content:"";position:absolute;inset:17px;border-radius:50%;
+    border:1px dashed var(--idle-dim)}
+  .dial .ring{position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 0 58%,var(--idle-2) 92%,transparent 100%);
+    -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+    mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+    filter:drop-shadow(0 0 10px var(--idle-dim));animation:idleSpin 2.8s linear infinite}
+  .dial .core{font-size:25px;font-weight:600;letter-spacing:.3em;text-indent:.3em;
+    background:linear-gradient(100deg,rgba(90,74,42,.55) 0%,var(--idle) 36%,#fff4d2 50%,var(--idle) 64%,rgba(90,74,42,.55) 100%);
+    background-size:240% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:idleSweep 3.6s linear infinite;filter:drop-shadow(0 0 6px var(--idle-dim))}
+  .dial .blip{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+    width:46px;height:2px;background:linear-gradient(90deg,transparent,var(--idle),transparent);
+    animation:idleBlip 1.9s ease-in-out infinite}
+  .idle-tag{display:flex;align-items:center;gap:8px;color:var(--fg-3);font-size:10.5px;
+    letter-spacing:.26em;text-transform:uppercase}
+  .idle-tag i{width:5px;height:5px;border-radius:50%;background:var(--idle);font-style:normal;
+    animation:idlePulse 1.6s ease-in-out infinite}
+  @keyframes idleSpin{to{transform:rotate(360deg)}}
+  @keyframes idleSweep{0%{background-position:130% 0}100%{background-position:-130% 0}}
+  @keyframes idleBlip{0%,100%{opacity:.22}50%{opacity:1}}
+  @keyframes idlePulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+  /* ===== 待机台上的时钟 / 链路 / 负载 / 版本 ===== */
+  .idle-clock{display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:-4px}
+  .idle-clock .ic-time{font-size:30px;letter-spacing:.12em;font-variant-numeric:tabular-nums;
+    color:var(--fg);text-shadow:0 0 20px var(--idle-dim)}
+  .idle-clock .ic-date{color:var(--fg-3);font-size:10.5px;letter-spacing:.22em}
+  .idle-stats{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;max-width:460px}
+  .idle-stats .ist{display:inline-flex;align-items:center;gap:6px;color:var(--fg-2);font-size:10.5px;
+    border:1px solid var(--line-2);border-radius:999px;padding:3px 11px;background:rgba(10,10,13,.66);
+    font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .idle-stats .ist i{width:5px;height:5px;border-radius:50%;background:var(--fg-3);font-style:normal;flex:0 0 auto}
+  .idle-stats .ist b{color:var(--fg-3);font-weight:400}
+  .idle-stats .ist.ok i{background:var(--green);box-shadow:0 0 7px var(--green)}
+  .idle-stats .ist.warn i{background:var(--amber);box-shadow:0 0 7px var(--amber)}
+  .idle-stats .ist.bad i{background:#e05030;box-shadow:0 0 7px #e05030}
+  .idle-note{color:var(--fg-3);font-size:10.5px;letter-spacing:.08em;text-align:center;max-width:430px;line-height:1.7}
+  .idle-note em{font-style:normal;color:var(--amber)}
+  .idle-note em.bad{color:#e05030}
+  .idle-ver{color:var(--fg-3);font-size:10px;letter-spacing:.26em;opacity:.72}
+
+  /* ===== 待机台右上角的角标动态 logo ===== */
+  .corner-logo{--idle:#e8a020;--idle-2:rgba(232,160,32,.9);--idle-dim:rgba(232,160,32,.16);
+    --crOrbit:-28px;
+    position:absolute;right:20px;top:18px;z-index:4;display:flex;align-items:center;gap:12px;
+    pointer-events:none;opacity:0;transform:translateY(-8px) scale(.96);
+    transition:opacity .5s ease .1s,transform .5s ease .1s}
+  .corner-logo.show{opacity:1;transform:none}
+  .corner-logo.scheme-white{--idle:#d6d6d6;--idle-2:rgba(214,214,214,.9);--idle-dim:rgba(214,214,214,.14)}
+  .corner-logo.scheme-cyan{--idle:#4fd1c5;--idle-2:rgba(79,209,197,.9);--idle-dim:rgba(79,209,197,.16)}
+  .corner-logo.scheme-green{--idle:#7ee06a;--idle-2:rgba(126,224,106,.9);--idle-dim:rgba(126,224,106,.16)}
+  .corner-logo .cmeta{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+  .corner-logo .cmeta b{font-size:10.5px;font-weight:500;letter-spacing:.2em;color:var(--fg-2)}
+  .corner-logo .cmeta span{font-size:9.5px;letter-spacing:.28em;color:var(--fg-3);opacity:.85}
+  .corner-logo .cmeta span::after{content:"";display:inline-block;width:4px;height:4px;margin-left:7px;
+    border-radius:50%;background:var(--idle);vertical-align:middle;
+    animation:idlePulse 1.6s ease-in-out infinite}
+  .corner-logo .cdial{position:relative;width:54px;height:54px;flex:0 0 auto;display:grid;place-items:center}
+  .corner-logo .cdial::before{content:"";position:absolute;inset:0;border-radius:50%;
+    border:1px solid var(--idle-dim)}
+  .corner-logo .cdial::after{content:"";position:absolute;inset:8px;border-radius:50%;
+    border:1px dashed var(--idle-dim);animation:idleSpin 11s linear infinite}
+  .corner-logo .cscan{position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 0 68%,var(--idle-2) 96%,transparent 100%);
+    -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));
+    mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));
+    filter:drop-shadow(0 0 7px var(--idle-dim));animation:idleSpin 3.4s linear infinite}
+  .corner-logo .cblip{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;
+    border-radius:50%;background:var(--idle);box-shadow:0 0 8px var(--idle);
+    animation:cornerOrbit 5.2s linear infinite}
+  .corner-logo .ccore{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-indent:.14em;
+    background:linear-gradient(100deg,rgba(90,74,42,.55) 0%,var(--idle) 36%,#fff4d2 50%,var(--idle) 64%,rgba(90,74,42,.55) 100%);
+    background-size:240% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:idleSweep 3.6s linear infinite;filter:drop-shadow(0 0 5px var(--idle-dim))}
+  @keyframes cornerOrbit{
+    0%{transform:rotate(0deg) translate(0,var(--crOrbit))}
+    100%{transform:rotate(360deg) translate(0,var(--crOrbit))}}
+  @media (max-width:600px){
+    .corner-logo{right:12px;top:12px;gap:8px;--crOrbit:-22px}
+    .corner-logo .cdial{width:44px;height:44px}
+    .corner-logo .cdial::after{inset:7px}
+    .corner-logo .ccore{font-size:9px}
+    .corner-logo .cmeta span{display:none}
+  }
+  /* ===== 播完之后的实时状态面板 ===== */
+  /* 状态面板压在 main 里（不是整个视口），这样顶部的标题栏和控制条不会被它盖掉 */
+  .status{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;
+    background:linear-gradient(180deg,rgba(6,6,8,.95),rgba(6,6,8,.89));
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    opacity:0;pointer-events:none;transition:opacity .28s ease}
+  .status.show{opacity:1;pointer-events:auto}
+  .st-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .st-head b{font-size:13px;letter-spacing:.18em}
+  .st-head .meta{color:var(--fg-3);font-size:11px;letter-spacing:.1em}
+  .st-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;padding:2px 0 16px}
+  .st-sec{display:flex;align-items:center;gap:10px;color:var(--fg-3);font-size:10.5px;
+    letter-spacing:.22em;padding:14px 16px 8px} /*__css1 */
+  .st-sec .seg{border-radius:6px;letter-spacing:0}
+  .st-sec .seg button{padding:3px 10px;font-size:10.5px;letter-spacing:.04em}
+  .mrow .msub{flex:0 0 auto;font-size:9.5px;color:var(--fg-3);font-variant-numeric:tabular-nums}
+  .mrow .mcost{flex:0 0 auto;margin-left:8px;font-size:10px;color:var(--amber);
+    font-variant-numeric:tabular-nums}
+  .mrow .mcost.miss{color:var(--fg-3)}
+  .st-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;padding:0 16px}
+  .card{border:1px solid var(--line-2);border-radius:10px;background:#0e0e12;padding:10px 12px}
+  .card h4{margin:0 0 8px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0}
+  .card h4 em{font-style:normal;color:var(--fg-3);font-size:10.5px;letter-spacing:.12em;margin-left:auto;
+    white-space:nowrap}
+  .card h4 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:11px;color:var(--fg-2);
+    font-variant-numeric:tabular-nums;word-break:break-all}
+  .kv i{font-style:normal;color:var(--fg-3)}
+  .badge{font-size:10px;letter-spacing:.1em;padding:1px 7px;border-radius:999px;border:1px solid var(--line-2);
+    color:var(--fg-3);white-space:nowrap}
+  .badge.ok{color:var(--green);border-color:rgba(126,224,106,.4)}
+  .badge.warn{color:var(--amber);border-color:rgba(232,160,32,.45)}
+  .badge.bad{color:#e05030;border-color:rgba(224,80,48,.45)}
+  .badge .plc{font-variant-numeric:tabular-nums}
+  .badge .plc.red{color:#e05030}
+  .badge .plc.blue{color:#5aa8e0}
+  .badge .plc.amber{color:var(--amber)}
+  .badge .plc.green{color:var(--green)}
+  .badge .plc.grey{color:#8a8a94}
+  .badge .plc.sep{color:rgba(255,255,255,.25)}
+  .led{width:7px;height:7px;border-radius:50%;background:var(--fg-3);flex:0 0 auto}
+  .led.ok{background:var(--green);box-shadow:0 0 7px var(--green)}
+  .led.warn{background:var(--amber);box-shadow:0 0 7px var(--amber);animation:blink 1.1s ease-in-out infinite}
+  .led.bad{background:#e05030;box-shadow:0 0 7px #e05030}
+  .st-empty{color:var(--fg-3);font-size:11.5px;padding:2px 16px 4px}
+  /* 插件点灯：卡片封顶，名单在卡片里自己滚，整段不再无限拉长去撞浮层 */
+  .st-grid.wrap{grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content}
+  .st-grid.wrap .card{min-width:0;height:auto;overflow:hidden}
+  .st-grid.wrap .mlist{max-height:132px;overflow-y:auto;overscroll-behavior:auto;
+    -webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;scrollbar-width:thin;padding-right:4px}
+  .st-grid.wrap .mlist::-webkit-scrollbar{width:6px}
+  .st-grid.wrap .mlist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:3px}
+  .st-grid.wrap .mlist::-webkit-scrollbar-track{background:transparent}
+  .led.blue{background:#5aa8e0;box-shadow:0 0 7px #5aa8e0}
+  .led.grey{background:#5a5a62;box-shadow:none}
+  .plrow{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:8px;align-items:center;
+    font-size:10.8px;color:var(--fg-2);padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.05)}
+  .plrow:last-child{border-bottom:0}
+  .plrow .pn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .plrow .pn em{font-style:normal;color:var(--fg-3);font-size:10px;margin-left:6px;letter-spacing:.06em}
+  .plrow .pv{color:var(--fg-3);font-size:10.5px;white-space:nowrap}
+  .plrow .pv.ok{color:var(--green)}
+  .plrow .pv.warn{color:var(--amber)}
+  .plrow .pv.blue{color:#5aa8e0}
+  .plrow .pv.bad{color:#e05030}
+  .plrow.off{opacity:.45}
+  .mlist{grid-column:1 / -1;display:flex;flex-direction:column;gap:3px;margin:1px 0 2px}
+  .mrow{display:flex;align-items:center;gap:6px;min-width:0;font-size:11px;color:var(--fg-2)}
+  .mrow .mtag{flex:0 0 auto;font-size:9.5px;letter-spacing:.08em;color:var(--fg-3);
+    border:1px solid var(--line-2);border-radius:4px;padding:0 4px;line-height:15px}
+  .mrow .mid{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mrow .mdef{flex:0 0 auto;margin-left:auto;font-size:9.5px;letter-spacing:.06em;color:var(--amber)}
+  .mrow .mnum{flex:0 0 auto;margin-left:auto;font-size:10px;color:var(--fg-3);
+    font-variant-numeric:tabular-nums}
+  .mnote{grid-column:1 / -1;font-size:10.5px;color:var(--fg-3);padding-top:2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <b>550C BOOT SEQUENCE</b>
+    <span>UAV-BS-07 · CONSOLE</span>
+  </div>
+  <div class="pill"><span class="dot" id="dot"></span><span id="state">待机</span></div>
+</header>
+
+<div class="bar">
+  <div class="group">
+    <label>模式</label>
+    <div class="seg" id="modeSeg">
+      <button data-v="simple" title="只放 550C 标识点亮那一段，约 4 秒">简化</button>
+      <button data-v="full" title="原稿完整流程：自检 / 鉴权 / 链路 / 隧道 / 隔离 / 重写 / 校验 / 就绪 / 完成">完整</button>
+      <button data-v="off" title="不播，只留黑屏待机">黑屏</button>
+    </div>
+  </div>
+  <div class="group">
+    <label>配色</label>
+    <div class="swatch" data-scheme="amber"><i></i></div>
+    <div class="swatch" data-scheme="green"><i></i></div>
+    <div class="swatch" data-scheme="cyan"><i></i></div>
+    <div class="swatch" data-scheme="white"><i></i></div>
+  </div>
+  <label class="toggle"><input type="checkbox" id="auto">自动播放</label>
+  <label class="toggle"><input type="checkbox" id="loop">循环</label>
+  <div class="group">
+    <label>时长</label>
+    <input type="range" id="dur" min="6" max="30" step="1">
+    <span class="num" id="durTxt">14s</span>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn" id="errBtn" title="当日出现过的报错清单"><span id="errBtnTxt">报错</span><span class="cnt" id="errBadge"></span></button>
+  <button class="btn" id="statusBtn" title="打开实时状态面板">状态</button>
+  <button class="btn" id="closeAll" title="状态和报错一起收，不留半个" style="display:none">收起</button>
+  <button class="btn primary" id="replay">重播</button>
+  <button class="btn" id="skip">跳过</button>
+  <button class="btn" id="save">记住设置</button>
+</div>
+
+<main>
+  <iframe id="stage" title="550C 开机动画"></iframe>
+  <div id="status" class="status">
+    <div class="st-head">
+      <b>550C · SYSTEM STATUS</b>
+      <span class="meta" id="stStamp">--:--:--</span>
+      <span class="meta" id="stVer"></span>
+      <div class="spacer"></div>
+      <button class="btn" id="stRefresh">刷新</button>
+    </div>
+    <div class="st-body">
+      <div class="st-sec">LINK · 适配器链路</div>
+      <div class="st-grid" id="stAdapters"></div>
+      <div class="st-sec">MODELS · 模型与用量 <!--__seg -->
+        <span class="seg" id="stUseSeg">
+          <button data-v="overview" class="active" title="原样：provider 清单 + 24h 总用量">概览</button>
+          <button data-v="model" title="按每个模型统计调用与 token">模型</button>
+          <button data-v="money" title="按内置价目表折算人民币，缓存命中单独计价">金额</button>
+        </span>
+      </div>
+      <div class="st-grid" id="stModels"></div>
+      <div class="st-sec">PLUGINS · 插件点灯</div>
+      <div class="st-grid wrap" id="stPlugins"></div>
+      <div class="st-sec">HOST · 宿主负载</div>
+      <div class="st-grid" id="stHost"></div>
+    </div>
+  </div>
+  
+  <div id="idleLogo" class="idle-logo">
+    <div class="dial">
+      <div class="ring"></div>
+      <span class="core">550C</span>
+      <span class="blip"></span>
+    </div>
+    <div class="idle-tag"><i></i><span>UAV-BS-07 · STANDBY</span></div>
+    <div class="idle-clock">
+      <div class="ic-time" id="icTime">--:--:--</div>
+      <div class="ic-date" id="icDate">--</div>
+    </div>
+    <div class="idle-stats">
+      <span class="ist" id="icLink"><i></i><b>链路</b><span class="v">-</span></span>
+      <span class="ist" id="icUp"><i></i><b>在线</b><span class="v">-</span></span>
+      <span class="ist" id="icCpu"><i></i><b>CPU</b><span class="v">-</span></span>
+      <span class="ist" id="icMem"><i></i><b>MEM</b><span class="v">-</span></span>
+      <span class="ist" id="icDis"><i></i><b>盘</b><span class="v">-</span></span>
+    </div>
+    <div class="idle-note" id="icNote">面板都收起来了，点上面任意按钮就能唤回来</div>
+    <div class="idle-ver" id="icVer">550C BOOT · v-</div>
+  </div>
+
+  <div id="cornerLogo" class="corner-logo" aria-hidden="true">
+    <div class="cmeta">
+      <b>UAV-BS-07</b>
+      <span>STANDBY</span>
+    </div>
+    <div class="cdial">
+      <span class="cscan"></span>
+      <span class="cblip"></span>
+      <span class="ccore">550C</span>
+    </div>
+  </div>
+
+  <div id="errs" class="errs">
+    <div class="er-head">
+      <b>ERROR LOG</b>
+      <span class="meta" id="erDate">--</span>
+      <span class="meta cnt bad" id="erCntE">E 0</span>
+      <span class="meta cnt warn" id="erCntW">W 0</span>
+      <div class="spacer"></div>
+      <div class="seg" id="erSeg">
+        <button data-v="all" title="报错和警告都要">全部</button>
+        <button data-v="e" title="只看 ERROR / CRITICAL">报错</button>
+        <button data-v="w" title="只看 WARNING">警告</button>
+      </div>
+      <div class="seg" id="erView">
+        <button data-v="group" title="同类型的合并成一堆，点开看每一次的时间与堆栈">分类</button>
+        <button data-v="time" title="不归堆，一条一条按时间从新到旧排，每条都标时间">时间</button>
+      </div>
+      <button class="btn" id="erCopy">复制</button>
+      <button class="btn" id="erRefresh">刷新</button>
+    </div>
+    <div class="er-body" id="erBody"></div>
+  </div>
+</main>
+<footer>
+  <span id="fMode">mode -</span>
+  <span id="fScheme">scheme -</span>
+  <span id="fLink">link -</span>
+  <span id="fHint">点一下画面也可以开始 / 结束</span>
+</footer>
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var idMatch = location.pathname.match(/^(.*)\/page\/plugin\/[^/]+/);
+  var API = (idMatch ? idMatch[1] : "") + "/api/plugin/kira-ai-plugin-550c-boot";
+  var stage = document.getElementById("stage");
+  var state = { mode: "full", scheme: "amber", auto: true, loop: false, duration: 14 };
+  var running = false, timer = null;
+
+  function toast(msg, isErr) {
+    var box = document.getElementById("toast");
+    var el = document.createElement("div");
+    el.className = "toast" + (isErr ? " err" : "");
+    el.textContent = msg;
+    box.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add("show"); });
+    setTimeout(function () {
+      el.classList.remove("show");
+      setTimeout(function () { el.remove(); }, 300);
+    }, 2600);
+  }
+
+  function setState(text, kind) {
+    document.getElementById("state").textContent = text;
+    document.getElementById("dot").className = "dot" + (kind ? " " + kind : "");
+    updateIdle();
+  }
+
+  /* ===== 收起之后露出来的那块，给个会动的 550C ===== */
+  var idleEl = document.getElementById("idleLogo");
+  var cornerEl = document.getElementById("cornerLogo");
+  var mainEl = document.querySelector("main");
+  function updateIdle() {
+    var busy = running || statusEl.classList.contains("show") || errsEl.classList.contains("show");
+    idleEl.classList.toggle("show", !busy);
+    if (cornerEl) cornerEl.classList.toggle("show", !busy);
+    if (mainEl) mainEl.classList.toggle("idle", !busy);   // 收起时把动画背景也撤掉
+    if (!busy) startIdlePoll();          // 待机台上要实时数据，收起时才开始轮询
+  }
+
+  /* ===== 待机台上那点东西：时钟 / 链路 / 负载 / 版本 ===== */
+  var idlePoll = null;
+
+  function idleSet(id, cls, text) {
+    var n = document.getElementById(id);
+    if (!n) return;
+    n.className = "ist" + (cls ? " " + cls : "");
+    var v = n.querySelector(".v");
+    if (v && text != null) v.textContent = text;
+  }
+  function sev(pct, warn, bad) { return pct >= bad ? "bad" : (pct >= warn ? "warn" : "ok"); }
+
+  function tickClock() {
+    var n = new Date(), W = "日一二三四五六";
+    var t = document.getElementById("icTime"), d = document.getElementById("icDate");
+    var p = function (x) { return (x < 10 ? "0" : "") + x; };
+    if (t) t.textContent = p(n.getHours()) + ":" + p(n.getMinutes()) + ":" + p(n.getSeconds());
+    if (d) d.textContent = n.getFullYear() + "-" + p(n.getMonth() + 1) + "-" + p(n.getDate()) +
+      " · 周" + W.charAt(n.getDay());
+  }
+
+  function feedIdle(d) {
+    var ver = document.getElementById("icVer");
+    if (ver) ver.textContent = "550C BOOT · v" + (d.version || "-");
+
+    var list = d.adapters || [];
+    var live = list.filter(function (a) { return a.live && !a.dead; });
+    if (!list.length) {
+      idleSet("icLink", "", "无适配器");
+      idleSet("icUp", "", "-");
+    } else if (!live.length) {
+      idleSet("icLink", "bad", "链路全断");
+      idleSet("icUp", "", "-");
+    } else {
+      var a = live[0];
+      var good = a.socket !== false && a.logged_in !== false;
+      idleSet("icLink", good ? "ok" : "warn",
+        (good ? "在线 · " : "重连中 · ") + (a.name || "-"));
+      idleSet("icUp", "ok", fmtDur(a.online_s));
+    }
+
+    var h = d.host || {};
+    if (h && h.ok) {
+      idleSet("icCpu", sev(h.cpu, 60, 85), h.cpu + "%");
+      idleSet("icMem", sev(h.mem, 75, 90), h.mem + "%");
+      idleSet("icDis", sev(h.disk, 75, 90), h.disk + "%");
+    } else {
+      idleSet("icCpu", "", "-"); idleSet("icMem", "", "-"); idleSet("icDis", "", "-");
+    }
+  }
+
+  function idleNote() {
+    var n = document.getElementById("icNote");
+    if (!n) return;
+    var d = errData || {}, ce = (d.counts && d.counts.error) || 0, cw = (d.counts && d.counts.warn) || 0;
+    if (d.ok === false) {
+      n.innerHTML = '日志读不到 · <em>面板都收起来了，点上面按钮唤回来</em>';
+    } else if (!ce && !cw) {
+      n.innerHTML = '今日安静，一条报错都没有 · <em>点上面按钮就能把面板唤回来</em>';
+    } else {
+      n.innerHTML = '今日 <em class="bad">E ' + ce + '</em> / <em>W ' + cw +
+        '</em> · 点上面的「报错」看清单';
+    }
+  }
+
+  function startIdlePoll() {
+    if (idlePoll) return;
+    loadStatus(); loadErrors("silent");
+    idlePoll = setInterval(function () {
+      if (!idleEl.classList.contains("show")) return;   // 面板开着就不轮询，省口气
+      loadStatus(); loadErrors("silent");
+    }, 20000);
+  }
+
+  function sync() {
+    var idleOn = idleEl.classList.contains("show");
+    idleEl.className = "idle-logo" + (state.scheme ? " scheme-" + state.scheme : "") +
+      (idleOn ? " show" : "");
+    if (cornerEl) cornerEl.className = "corner-logo" + (state.scheme ? " scheme-" + state.scheme : "") +
+      (idleOn ? " show" : "");
+    Array.prototype.forEach.call(document.querySelectorAll("#modeSeg button"), function (b) {
+      b.classList.toggle("active", b.dataset.v === state.mode);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".swatch"), function (s) {
+      s.classList.toggle("active", s.dataset.scheme === state.scheme);
+    });
+    document.getElementById("auto").checked = state.auto;
+    document.getElementById("loop").checked = state.loop;
+    document.getElementById("dur").value = state.duration;
+    document.getElementById("durTxt").textContent = state.duration + "s";
+    document.getElementById("fMode").textContent = "mode " + state.mode;
+    document.getElementById("fScheme").textContent = "scheme " + state.scheme;
+    document.getElementById("replay").disabled = state.mode === "off";
+  }
+
+  function src(bust, forceAuto) {
+    return "show.html?mode=" + encodeURIComponent(state.mode)
+      + "&scheme=" + encodeURIComponent(state.scheme)
+      + "&auto=" + (forceAuto || state.auto ? "1" : "0")
+      + "&_t=" + (bust || Date.now());
+  }
+
+  function load(keepRunning, forceAuto) {
+    running = false;
+    if (timer) { clearTimeout(timer); timer = null; }
+    document.getElementById("fLink").textContent = "link loading…";
+    stage.src = src(null, forceAuto);
+    if (!keepRunning) setState(state.mode === "off" ? "黑屏" : "待机");
+  }
+
+  function replay() {
+    if (state.mode === "off") return toast("黑屏模式下没有动画可播", true);
+    // 页内 bootUp() 有 launched 锁，重播只能整帧重载，才能从头跑完整段
+    // 手动重播必须强制带 auto=1：面板存“不自动播放”时，重载后仍会停在待机层
+    load(true, true);
+    running = true;
+    setState("播放中", "run");
+    document.getElementById("fLink").textContent = "link live";
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () {
+      if (running) { running = false; setState("待机"); }
+    }, 240000);
+  }
+
+  function skip() {
+    stage.contentWindow.postMessage({ cmd: "skip" }, "*");
+    running = false;
+    setState("已跳过");
+    if (timer) { clearTimeout(timer); timer = null; }
+  }
+
+  window.addEventListener("message", function (ev) {
+    if (ev.source !== stage.contentWindow) return;
+    var d = ev.data || {};
+    if (typeof d.type !== "string" || d.type.indexOf("550c:") !== 0) return;
+    var what = d.type.slice(5);
+    if (what === "ready") {
+      document.getElementById("fLink").textContent = "link ready";
+      setState(state.mode === "off" ? "黑屏" : "待机", state.mode === "off" ? null : "on");
+    } else if (what === "started") {
+      running = true;
+      setState("播放中", "run");
+      document.getElementById("fLink").textContent = "link live";
+      closeStatus();
+      closeErrors();
+    } else if (what === "done") {
+      running = false;
+      document.getElementById("fLink").textContent = "link idle";
+      setState("收工", "on");
+      if (state.loop) setTimeout(replay, 700);
+      else setTimeout(function () {        // 播完一块儿接上：实时状态 + 当日报错，而不是干晾在最后一帧
+        openStatus();
+        openErrors(true);                  // true = 衔接弹出；读不到日志就悄悄不出，别弹个空框
+      }, 900);
+    } else if (what === "off") {
+      document.getElementById("fLink").textContent = "link off";
+      setState("黑屏", null);
+    }
+  });
+
+  document.getElementById("modeSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    state.mode = b.dataset.v;
+    sync();
+    load();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".swatch"), function (s) {
+    s.addEventListener("click", function () {
+      state.scheme = s.dataset.scheme;
+      sync();
+      load(true);
+    });
+  });
+  document.getElementById("auto").addEventListener("change", function (e) {
+    state.auto = e.target.checked;
+    sync();
+    load(true);
+  });
+  document.getElementById("loop").addEventListener("change", function (e) {
+    state.loop = e.target.checked;
+    sync();
+  });
+  document.getElementById("dur").addEventListener("input", function (e) {
+    state.duration = parseInt(e.target.value, 10) || 14;
+    sync();
+  });
+  // 画面被撤掉之后，点中间那块（logo）照样能起播
+  if (mainEl) mainEl.addEventListener("click", function (e) {
+    if (e.target.closest(".status, .errs, button")) return;
+    if (mainEl.classList.contains("idle") && state.mode !== "off") replay();
+  });
+
+  document.getElementById("replay").addEventListener("click", replay);
+  document.getElementById("skip").addEventListener("click", skip);
+  document.getElementById("save").addEventListener("click", function () {
+    fetch(API + "/settings", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: state.mode, scheme: state.scheme,
+        auto_play: state.auto, loop: state.loop, duration_hint: state.duration
+      })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      toast(res.status === "ok" ? (res.msg || "已保存") : (res.msg || "保存失败"), res.status !== "ok");
+    }).catch(function () { toast("链路断开，设置没写回去", true); });
+  });
+
+
+  /* ===== 实时状态：适配器链路 + 宿主负载 ===== */
+  var statusEl = document.getElementById("status");
+  var stTimer = null;
+
+  function el(tag, cls, txt) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt != null) e.textContent = String(txt);
+    return e;
+  }
+  function kv(box, k, v) {
+    box.appendChild(el("i", null, k));
+    box.appendChild(el("span", null, (v == null || v === "") ? "-" : v));
+  }
+  function fmtDur(sec) {
+    if (sec == null) return "-";
+    sec = Math.max(0, Math.floor(sec));
+    var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600),
+        m = Math.floor(sec % 3600 / 60);
+    if (d) return d + "天" + h + "时";
+    if (h) return h + "时" + m + "分";
+    return m + "分" + (sec % 60) + "秒";
+  }
+  function card(box, title, badge, cls, led) {
+    var c = el("div", "card"), h = el("h4");
+    h.appendChild(el("span", "led" + (led ? " " + led : "")));
+    h.appendChild(el("span", "nm", title));
+    if (badge) {
+      var bg = el("span", "badge" + (cls ? " " + cls : ""));
+      if (badge && typeof badge === "object" && badge.nodeType) bg.appendChild(badge);
+      else bg.textContent = String(badge);
+      h.appendChild(bg);
+    }
+    var body = el("div", "kv");
+    c.appendChild(h);
+    c.appendChild(body);
+    box.appendChild(c);
+    return body;
+  }
+
+  function renderAdapters(list) {
+    var box = document.getElementById("stAdapters");
+    box.innerHTML = "";
+    if (!list.length) {
+      box.appendChild(el("div", "st-empty", "没有读到适配器配置"));
+      return;
+    }
+    list.forEach(function (a) {
+      var live = a.live && !a.dead;
+      var state = a.dead ? "bad" : (live ? (a.logged_in === false ? "warn" : "ok")
+                                        : (a.enabled ? "warn" : null));
+      var text = a.dead ? "链路已断"
+        : (live ? (a.socket === false ? "重连中" : (a.logged_in === false ? "等待登录" : "在线"))
+                : (a.enabled ? (a.starting ? "启动中" : "未启动") : "已禁用"));
+      var body = card(box, a.name, text, state || "", state || (a.enabled ? "" : ""));
+      kv(body, "平台", a.platform);
+      kv(body, "账号", a.uin);
+      kv(body, "链路", a.link);
+      if (a.live) {
+        kv(body, "登录", a.logged_in === null ? "-" : (a.logged_in ? "已登录" : "未登录"));
+        kv(body, "在线", fmtDur(a.online_s));
+      }
+    });
+  }
+
+  function renderHost(h) {
+    var box = document.getElementById("stHost");
+    box.innerHTML = "";
+    if (!h || !h.ok) {
+      box.appendChild(el("div", "st-empty", "宿主状态读不到：" + ((h && h.msg) || "未知原因")));
+      return;
+    }
+    var body = card(box, "CPU", h.cpu + "%",
+      h.cpu >= 85 ? "bad" : (h.cpu >= 60 ? "warn" : "ok"),
+      h.cpu >= 85 ? "bad" : (h.cpu >= 60 ? "warn" : "ok"));
+    kv(body, "核心", h.cores + " 核");
+    kv(body, "开机", fmtDur(h.boot_s));
+
+    body = card(box, "内存", h.mem + "%",
+      h.mem >= 90 ? "bad" : (h.mem >= 75 ? "warn" : "ok"),
+      h.mem >= 90 ? "bad" : (h.mem >= 75 ? "warn" : "ok"));
+    kv(body, "已用", h.mem_used + " / " + h.mem_total + " GB");
+    kv(body, "进程", h.proc_mem + " MB");
+
+    body = card(box, "磁盘", h.disk + "%",
+      h.disk >= 90 ? "bad" : (h.disk >= 75 ? "warn" : "ok"),
+      h.disk >= 90 ? "bad" : (h.disk >= 75 ? "warn" : "ok"));
+    kv(body, "主体运行", fmtDur(h.proc_s));
+  }
+
+  var M_DEF = {
+    default_llm: "主模型", default_fast_llm: "快模型", default_vlm: "视觉",
+    default_tts: "语音合成", default_stt: "语音识别", default_image: "绘图",
+    default_video: "视频", default_embedding: "向量", default_rerank: "重排"
+  };
+  var M_LIMIT = 6;
+
+  function fmtNum(n) {
+    n = Number(n) || 0;
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  /* 三种看法：概览（provider 清单）/ 模型（按模型统计）/ 金额（按价目表折钱） */
+  /*__view */
+  var usageView = "overview";
+  (function () {
+    var seg = document.getElementById("stUseSeg");
+    if (!seg) return;
+    seg.addEventListener("click", function (ev) {
+      var b = ev.target;
+      while (b && b.tagName !== "BUTTON") b = b.parentNode;
+      if (!b || !seg.contains(b)) return;
+      usageView = b.getAttribute("data-v") || "overview";
+      var all = seg.querySelectorAll("button");
+      for (var i = 0; i < all.length; i++) all[i].className = (all[i] === b) ? "active" : "";
+      loadStatus();
+    });
+  })();
+
+  function fmtMoney(v) {
+    v = Number(v) || 0;
+    if (v >= 1000) return v.toFixed(0);
+    if (v >= 1) return v.toFixed(2);
+    if (v >= 0.01) return v.toFixed(4);
+    if (v <= 0) return "0.0000";
+    return v.toFixed(6);
+  }
+  function shortModel(n) {
+    var s = String(n || "-");
+    return s.split(":").pop() || s;
+  }
+  /* 拿不到用量就说清楚为什么，别让面板空着装懂 */
+  function usageReady(box, t) {
+    if (!t || !t.ok) {
+      box.appendChild(el("div", "st-empty", "用量读不到：" + ((t && t.msg) || "无数据源")));
+      return false;
+    }
+    if (!((t.by_model || []).length)) {
+      box.appendChild(el("div", "st-empty", "24 小时里还没有调用记录"));
+      return false;
+    }
+    return true;
+  }
+  function modelLine(box, x) {
+    var r = el("div", "mrow");
+    r.appendChild(el("span", "mid", shortModel(x.model)));
+    r.appendChild(el("span", "msub", (x.calls || 0) + " 次"));
+    r.appendChild(el("span", "mnum", fmtNum((x.input || 0) + (x.output || 0)) + " tok"));
+    r.appendChild(el("span", "mcost" + (x.cost == null ? " miss" : ""),
+      x.cost == null ? "未定价" : "¥" + fmtMoney(x.cost)));
+    box.appendChild(r);
+  }
+
+  function renderUsageModels(box, t) {
+    if (!usageReady(box, t)) return;
+    var rows = (t.by_model || []).slice();
+    var body = card(box, "按模型统计 · 24h", rows.length + " 个模型", "ok", "ok");
+    kv(body, "调用", t.calls + " 次 · 成 " + t.success);
+    kv(body, "合计", fmtNum(t.total) + " tok");
+    kv(body, "平均", t.avg_ms + " ms");
+    var list = el("div", "mlist");
+    rows.forEach(function (x) {
+      var r = el("div", "mrow");
+      r.appendChild(el("span", "mid", shortModel(x.model)));
+      r.appendChild(el("span", "msub", (x.calls || 0) + " 次"));
+      r.appendChild(el("span", "msub", "均 " + (x.avg_ms || 0) + "ms"));
+      r.appendChild(el("span", "mnum",
+        fmtNum(x.input) + " / " + fmtNum(x.output) + " / " + fmtNum(x.cached)));
+      list.appendChild(r);
+    });
+    body.appendChild(list);
+    body.appendChild(el("div", "mnote", "每行：输入 / 输出 / 缓存（token）"));
+  }
+
+  function renderUsageMoney(box, t) {
+    if (!usageReady(box, t)) return;
+    var rows = (t.by_model || []).slice().sort(function (a, b) {
+      return (b.cost || 0) - (a.cost || 0);
+    });
+    var miss = t.unknown_price || [];
+
+    var head = card(box, "已用金额 · 24h", "¥" + fmtMoney(t.cost), "ok", "ok");
+    kv(head, "币种", "人民币 CNY");
+    kv(head, "计价", t.unit || "元/百万 token");
+    kv(head, "调用", t.calls + " 次 · 成 " + t.success);
+    kv(head, "token", fmtNum(t.input) + " 进 / " + fmtNum(t.output) + " 出");
+    kv(head, "缓存", fmtNum(t.cached));
+    if (miss.length) kv(head, "未定价", miss.length + " 个模型");
+
+    var rank = card(box, "按模型计费", rows.length + " 项", "ok", "ok");
+    var list = el("div", "mlist");
+    rows.forEach(function (x) { modelLine(list, x); });
+    rank.appendChild(list);
+
+    var unit = card(box, "命中单价", "", "ok", "ok");
+    var ul = el("div", "mlist");
+    var hit = 0;
+    rows.forEach(function (x) {
+      if (!x.price) return;
+      hit++;
+      var r = el("div", "mrow");
+      r.appendChild(el("span", "mid", shortModel(x.model)));
+      r.appendChild(el("span", "mnum",
+        "进 " + x.price["in"] + " · 缓 " + x.price.cached + " · 出 " + x.price.out));
+      ul.appendChild(r);
+    });
+    if (hit) unit.appendChild(ul);
+    else unit.appendChild(el("div", "mnote", "没有命中任何单价"));
+    unit.appendChild(el("div", "mnote", "单位：元 / 百万 token"));
+
+    if (miss.length) {
+      var w = card(box, "未定价模型", miss.length + " 个", "warn", "warn");
+      var wl = el("div", "mlist");
+      miss.forEach(function (n) {
+        var r = el("div", "mrow");
+        r.appendChild(el("span", "mid", shortModel(n)));
+        r.appendChild(el("span", "mcost miss", "未定价"));
+        wl.appendChild(r);
+      });
+      w.appendChild(wl);
+      w.appendChild(el("div", "mnote", "补价：data/plugin_data/kira-ai-plugin-550c-boot/prices.json"));
+    }
+  }
+
+  /* 按 provider 列模型 + 24h 用量。拿不到就写清楚为什么，别空着 */
+  function renderModels(m, t) {
+    var box = document.getElementById("stModels");
+    if (!box) return;
+    box.innerHTML = "";
+    if (usageView === "model") { renderUsageModels(box, t); return; }
+    if (usageView === "money") { renderUsageMoney(box, t); return; }
+    var rows = (m && m.providers) || [];
+
+    var calls = {};
+    ((t && t.by_model) || []).forEach(function (x) {
+      var k = String(x.model || "").split(":").pop();
+      if (k) calls[k] = (calls[k] || 0) + (x.calls || 0);
+    });
+
+    if (!rows.length) box.appendChild(el("div", "st-empty", "没有读到模型配置"));
+
+    rows.forEach(function (p) {
+      var state = p.live ? "ok" : (p.count ? "warn" : null);
+      var body = card(box, p.name, p.count + " 个模型", state || "", state || "");
+      kv(body, "格式", p.format);
+      var models = p.models || [];
+      var show = models.length > M_LIMIT ? models.slice(0, M_LIMIT) : models;
+      if (show.length) {
+        var list = el("div", "mlist");
+        show.forEach(function (md) {
+          var r = el("div", "mrow");
+          r.appendChild(el("span", "mtag", md.type));
+          r.appendChild(el("span", "mid", md.id));
+          var d = (md.default || []).map(function (k) { return M_DEF[k] || k; });
+          var used = calls[md.id];
+          if (d.length) r.appendChild(el("span", "mdef", d.join(" / ")));
+          else if (used) r.appendChild(el("span", "mnum", used + " 次"));
+          list.appendChild(r);
+        });
+        body.appendChild(list);
+      }
+      if (models.length > M_LIMIT) {
+        body.appendChild(el("div", "mnote", "还有 " + (models.length - M_LIMIT) + " 个没展开"));
+      }
+    });
+
+    if (!t || !t.ok) {
+      box.appendChild(el("div", "st-empty", "用量读不到：" + ((t && t.msg) || "无数据源")));
+      return;
+    }
+    var b2 = card(box, "24h 用量", fmtNum(t.total) + " tok", "ok", "ok");
+    kv(b2, "调用", t.calls + " 次 · 成 " + t.success);
+    kv(b2, "输入", fmtNum(t.input));
+    kv(b2, "输出", fmtNum(t.output));
+    kv(b2, "缓存", fmtNum(t.cached));
+    kv(b2, "平均", t.avg_ms + " ms");
+  }
+
+  /* 插件点灯：红=加载报错 黄=没加载完 蓝=有新版 灰=市场没收录 绿=最新 */
+  var PL_LIGHT = { red: "bad", amber: "warn", blue: "blue", grey: "", green: "ok" };
+  function renderPlugins(p) {
+    var box = document.getElementById("stPlugins");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!p || !p.rows) {
+      box.appendChild(el("div", "st-empty", "插件清单读不到" + ((p && p.error) ? "：" + p.error : "")));
+      return;
+    }
+    var rows = p.rows || [], c = p.counts || {}, total = p.total || rows.length;
+    var cls = c.red ? "bad" : ((c.blue || c.amber) ? "warn" : "ok");
+    var badgeEl = el("span", "plbox");
+    [["red", "红", c.red], ["blue", "蓝", c.blue], ["amber", "黄", c.amber],
+     ["green", "绿", c.green], ["grey", "灰", c.grey]].forEach(function (p, i) {
+      if (i) badgeEl.appendChild(el("span", "plc sep", " · "));
+      badgeEl.appendChild(el("span", "plc " + p[0], p[1] + " " + (p[2] || 0)));
+    });
+    var body = card(box, "共 " + total + " 个插件", badgeEl, cls, cls);
+    kv(body, "市场缓存", p.market_at || "-");
+    if (!rows.length) {
+      body.appendChild(el("div", "mnote", "没有需要点灯的插件"));
+      return;
+    }
+    var list = el("div", "mlist");
+    rows.forEach(function (r) {
+      var line = el("div", "plrow" + (r.enabled === false ? " off" : ""));
+      line.appendChild(el("span", "led " + (PL_LIGHT[r.light] || "")));
+      var nm = el("span", "pn", r.name);
+      var ver = "v" + r.version + (r.latest ? " → " + r.latest : "");
+      nm.appendChild(el("em", null, ver));
+      line.appendChild(nm);
+      line.appendChild(el("span", "pv " + (PL_LIGHT[r.light] || ""),
+        r.note + (r.enabled === false ? " · 已禁用" : "")));
+      line.title = r.id;
+      list.appendChild(line);
+    });
+    body.appendChild(list);
+  }
+
+  function loadStatus() {
+    var ver = document.getElementById("stVer");
+    fetch(API + "/status", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok" || !res.data) throw new Error("bad payload");
+        var d = res.data;
+        document.getElementById("stStamp").textContent =
+          new Date(d.ts * 1000).toLocaleTimeString("zh-CN", { hour12: false });
+        ver.textContent = "v" + d.version;
+        renderAdapters(d.adapters || []);
+        renderModels(d.models || {}, d.tokens || {});
+        renderPlugins(d.plugins || {});
+        renderHost(d.host || {});
+        feedIdle(d);
+      })
+      .catch(function () { ver.textContent = "状态读不到"; });
+  }
+
+  function openStatus() {
+    statusEl.classList.add("show");
+    if (typeof syncCloseAll === "function") syncCloseAll();
+    updateIdle();
+    loadStatus();
+    if (stTimer) clearInterval(stTimer);
+    stTimer = setInterval(loadStatus, 5000);
+  }
+  function closeStatus() {
+    statusEl.classList.remove("show");
+    if (stTimer) { clearInterval(stTimer); stTimer = null; }
+    if (typeof syncCloseAll === "function") syncCloseAll();
+    updateIdle();
+  }
+
+
+  /* ===== 当日报错列表框 ===== */
+  var errsEl = document.getElementById("errs");
+  var errData = null, errFilter = "all", errOpen = false, errBusy = false;
+
+  // 报错按钮只管开合，不再改叫「收起」——收起这个活儿统一交给工具栏那一个
+  function updateErrBtn() {
+    var btn = document.getElementById("errBtn");
+    var bd = document.getElementById("errBadge");
+    if (btn) btn.classList.toggle("active", errOpen);
+    if (bd) bd.style.display = errOpen ? "none" : "";
+    syncCloseAll();
+  }
+
+  // 状态、报错谁开着，「收起」就在；都不开着它就藏起来，右上角不会挂着两个一样的字
+  function syncCloseAll() {
+    var el = document.getElementById("closeAll");
+    var sp = document.getElementById("status");
+    if (!el) return;
+    var spOpen = !!(sp && sp.classList.contains("show"));
+    var any = spOpen || errOpen;
+    el.style.display = any ? "" : "none";
+    el.textContent = (spOpen && errOpen) ? "全部收起" : "收起";
+    var sb = document.getElementById("statusBtn");
+    if (sb) sb.classList.toggle("active", spOpen);
+  }
+  function openErrors(auto) {
+    errOpen = true;
+    updateErrBtn();
+    updateIdle();
+    loadErrors(auto ? "auto" : "manual");
+  }
+  function closeErrors() {
+    errOpen = false;
+    errsEl.classList.remove("show");
+    updateErrBtn();
+    updateIdle();
+  }
+  function toggleErrors() { if (errOpen) closeErrors(); else openErrors(false); }
+
+  // mode: silent = 只偷偷更新计数不弹框 / auto = 衔接弹出，读不到就安静 / manual = 用户自己点的，失败也要说
+  function loadErrors(mode) {
+    if (errBusy) return;
+    errBusy = true;
+    fetch(API + "/errors", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok" || !res.data) throw new Error("bad payload");
+        errData = res.data;
+        renderErrors();
+        idleNote();
+        if (mode === "silent") return;
+        if (mode === "auto" && errData.ok === false) { closeErrors(); return; }
+        errsEl.classList.add("show");
+        updateIdle();
+      })
+      .catch(function () {
+        if (mode === "silent") return;
+        if (mode === "auto") { closeErrors(); return; }
+        var box = document.getElementById("erBody");
+        box.innerHTML = "";
+        box.appendChild(el("div", "er-empty", "读不到日志：接口还没生效（重载插件）或日志文件不在这台机器上"));
+        errsEl.classList.add("show");
+        updateIdle();
+      })
+      .then(function () { errBusy = false; });
+  }
+
+  /* ===== 方案库：每条报错该怎么收场 ===== */
+  var GENERIC_FIX = {
+    tag: "通用", cls: "", ttl: "这条还没进方案库，按这三步走",
+    why: "库里暂时没有它对得上的条目，但排查路子是固定的。",
+    fix: [
+      "先看它出在哪个来源：配置类（config / auth / settings）、链路类（napcat / ssh / provider）、代码类（tool_use / plugin）。",
+      "点上面那个「复制」，把这一份整段丢给我——有 stack 我能直接定位，别自己硬啃。",
+      "同一小时里反复冒且功能真的不正常 = 故障；只冒一两次、功能照常 = 噪音，把当天计数看一眼就放它过去。"
+    ]
+  };
+
+  var SOLUTIONS = [
+    { tag: "噪音", cls: "noise", ttl: "“正在输入”没人接，纯噪音",
+      k: [/typing indicator/i],
+      why: "当前适配器没有实现「正在输入」这个接口，插件每想发一次就记一条 ERROR。它跟消息能不能收、能不能发毫无关系。",
+      fix: [
+        "在持续对话 / 加速器这类插件的设置里，把 typing（正在输入状态）的开关关掉。",
+        "顺手把这个来源的日志级别提到 WARNING，别再往当日计数里灌。",
+        "确认关掉之后，面板顶上的红点当天就会掉下来。"
+      ] },
+
+    { tag: "模型能力", cls: "cfg", ttl: "当前模型不支持看图",
+      k: [/MODEL_CAPABILITY_NOT_SUPPORTED/i, /不支持该能力/, /describe.*image/i],
+      why: "图片描述用到的那个模型没有视觉能力，于是每来一张图就报一次 400。纯文字对话不受影响。",
+      fix: [
+        "面板 → 模型配置里，给「图像理解」单独指定一个多模态模型（gpt-4o / qwen-vl / gemini 这类）。",
+        "或者把图像处理方式换成「VLM 描述」，并绑定上面那个模型。",
+        "暂时不想折腾，就关掉自动图片描述，图片会原样进上下文。"
+      ] },
+
+    { tag: "链路", cls: "env", ttl: "NapCat 的 WebSocket 连不上",
+      k: [/WebSocket 重连失败/, /WebSocket 连接断开/, /WebSocket 连接已关闭/, /opening handshake/, /事件回调处理失败/],
+      why: "适配器连不上 NapCat 的 ws 端口：常见是 NapCat 没起、端口不对、地址写了 127.0.0.1 但机器人跑在容器里，或两边 token 不一致。",
+      fix: [
+        "在机器人那台机器上敲 <code>curl -i http://127.0.0.1:3001</code>，有 HTTP 响应就说明 NapCat 活着、端口也对。",
+        "跑在容器里的，<code>127.0.0.1</code> 指的是容器自己，要换成宿主内网 IP 或 <code>host.docker.internal</code>。",
+        "确认 NapCat 已登录 QQ 且开了 WebSocket 服务；两边的 access_token 填成一样的。",
+        "重连是自动的，20 次用完就停——改完配置重载一次适配器，别干等。"
+      ] },
+
+    { tag: "代码", cls: "code", ttl: "工具参数名对不上",
+      k: [/unexpected keyword argument/i],
+      why: "调用方按旧定义传参，插件方法签名的参数名已经改了（比如 command 对不上 cmd），一条参数错，整次调用就废。",
+      fix: [
+        "先重载对应插件，让模型重新读一遍工具定义再试。",
+        "对着报错里的方法名打开插件源码，把参数名统一（command ↔ cmd 这类）。",
+        "在方法签名里加 <code>**kwargs</code> 兜底，以后多传参数也不会整条失败。"
+      ] },
+
+    { tag: "配置", cls: "cfg", ttl: "这个插件还没配好",
+      k: [/Missing required configuration parameters/i, /not configured/i, /Missing required/i],
+      why: "插件必需的几项参数是空的（地址、账号、密码之类），它自己起不来，功能也就一直是缺的。",
+      fix: [
+        "面板 → 插件 → 找到报错里那个插件名，把必填项补齐再保存。",
+        "有些参数要先有对端服务（todo / SSH 这类），确认对端已经在跑。",
+        "保存之后重载一次该插件，配置才算真生效。"
+      ] },
+
+    { tag: "限速", cls: "env", ttl: "GitHub 接口被限速了",
+      k: [/rate limit exceeded/i, /403.*api\.github/i],
+      why: "没带 token 的匿名请求每小时只有 60 次，超了就 403。这类报错会退回旧缓存，不影响正常使用。",
+      fix: [
+        "在插件配置里填上 GitHub Token，配额会涨到 5000 / 小时。",
+        "填过的话检查 token 是否过期或被撤销，一看便知。",
+        "只是偶尔冒一条、功能照常，可以直接忽略。"
+      ] },
+
+    { tag: "超时", cls: "env", ttl: "等太久了，请求超时",
+      k: [/timed out after \d+s/i, /request timeout/i, /TimeoutError/i, /timed out during/i],
+      why: "请求在规定时间内没回来：模型那边慢、代理不稳，或者刚好赶上高峰。",
+      fix: [
+        "确认 provider 的 base_url 和代理是通的，随便发一句话看是否秒回。",
+        "把抽取 / 描述这类非关键任务换到更快的模型，或把超时时间放宽。",
+        "偶发一两次不用管；连着出现就得查网络了。"
+      ] },
+
+    { tag: "环境", cls: "env", ttl: "中文分词库没装",
+      k: [/jieba 未安装/i],
+      why: "记忆检索想要中文分词，没装 jieba 就降级成按字切，检索会变钝一点。不影响主流程。",
+      fix: [
+        "在机器人环境里执行 <code>pip install jieba</code>。",
+        "装完重载一次插件，这条就不再出现。"
+      ] },
+
+    { tag: "链路", cls: "env", ttl: "远程那台机器连不上",
+      k: [/Connect call failed/i, /ConnectionRefusedError/i, /SSH Plugin/i],
+      why: "目标地址 + 端口上没有服务在听：sshd 没起、端口不对，或者 IP 已经变了。",
+      fix: [
+        "到目标机上确认端口在听：<code>ss -lntp</code> 里有没有那一条。",
+        "手机端（Termux）要先把 sshd 起来，端口记清楚。",
+        "内网 IP 会变，重连 Wi-Fi 之后记得更新配置里那个地址。",
+        "确认两边在同一网段，防火墙没挡。"
+      ] },
+
+    { tag: "记忆", cls: "cfg", ttl: "记忆抽取失败，多半是模型没按格式回",
+      k: [/Merge facts error/i, /extraction.*failed/i, /Personal fact extraction/i, /default_fast_llm not set/i],
+      why: "让模型吐结构化结果，它没照格式回，解析就断了；或者抽取用的模型压根没配、太慢。",
+      fix: [
+        "检查抽取用的模型是否可用（日志里若出现 default_fast_llm not set，就是没配）。",
+        "把超时放宽或换快速模型，30 秒对长上下文确实紧。",
+        "它只影响记忆写入，不影响对话，偶发可以忍。"
+      ] },
+
+    { tag: "连带伤", cls: "env", ttl: "链路断着导致的连带失败",
+      k: [/fetch_custom_face/, /NapCat WebSocket 未连接/i, /get_msg 超时/i, /已跳过该事件/],
+      why: "依赖 NapCat 的动作（取表情、取引用消息、事件回调）在链路断着的时候必然失败，属于连带伤，不是新毛病。",
+      fix: [
+        "先把上面那条 NapCat 的 ws 修好，这些连带报错会一起消失。",
+        "链路恢复前，引用解析、表情同步会静默跳过，不影响正文收发。"
+      ] },
+
+    { tag: "配置", cls: "cfg", ttl: "搜索源缺 Key，那个源就哑了",
+      k: [/Tavily API key not found/i, /API key not found/i],
+      why: "某个搜索源没配 API Key，它会跳过这个来源、用别的顶上，功能不致命。",
+      fix: [
+        "要用这个源就补上对应的 Key，配完重载插件。",
+        "不想用就当它不存在，别让它占着报错位。"
+      ] }
+  ];
+
+  function solutionFor(src, msg) {
+    var hay = String(src || "") + " " + String(msg || "");
+    for (var i = 0; i < SOLUTIONS.length; i++) {
+      var s = SOLUTIONS[i];
+      for (var j = 0; j < s.k.length; j++) {
+        if (s.k[j].test(hay)) return s;
+      }
+    }
+    return GENERIC_FIX;
+  }
+
+  // 挂在每条报错下面：一个按钮，点开是照着这类日志写好的处理办法
+  function fixBlock(it) {
+    var sol = solutionFor(it.src, it.msg);
+    var wrap = el("div", "fx-wrap");
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sol-btn";
+    btn.textContent = "怎么办 ▾";
+    var box = el("div", "er-fix");
+    var ttl = el("div", "fx-ttl");
+    ttl.appendChild(document.createTextNode(sol.ttl));
+    if (sol.tag) ttl.appendChild(el("span", "fx-tag " + (sol.cls || ""), sol.tag));
+    box.appendChild(ttl);
+    if (sol.why) box.appendChild(el("div", "fx-why", sol.why));
+    var ol = document.createElement("ol");
+    sol.fix.forEach(function (line) {
+      var li = document.createElement("li");
+      li.innerHTML = line;
+      ol.appendChild(li);
+    });
+    box.appendChild(ol);
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();   // 别把父行的展开/收起一起点了
+      var open = box.classList.toggle("show");
+      btn.classList.toggle("open", open);
+      btn.textContent = open ? "收起方案 ▴" : "怎么办 ▾";
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(box);
+    return wrap;
+  }
+
+  var errView = "group";   // group=同类归堆 / time=不归堆，按时间从新到旧逐条列
+  function sortByTime(list) {
+    return list.slice().sort(function (a, b) {
+      var x = (a.d || "") + a.t, y = (b.d || "") + b.t;
+      if (x === y) return 0;
+      return x < y ? 1 : -1;        // 从新到旧
+    });
+  }
+  function dayOf(it) {
+    return it.d || (errData && errData.date) || "";
+  }
+
+  function sigOf(msg) {
+    return String(msg)
+      .replace(/0x[0-9a-f]+/gi, "0x#")
+      .replace(/'[^']{0,140}'/g, "'…'")
+      .replace(/"[^"]{0,140}"/g, '"…"')
+      .replace(/\d+/g, "#")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+  }
+
+  function groupItems(list) {
+    var out = [], map = {};
+    list.forEach(function (it) {
+      var sig = sigOf(it.msg);
+      var k = it.lv + "|" + it.src + "|" + sig;
+      var g = map[k];
+      if (!g) { g = { lv: it.lv, src: it.src, sig: sig, msg0: it.msg, items: [] }; map[k] = g; out.push(g); }
+      g.items.push(it);
+    });
+    out.forEach(function (g) {
+      g.n = g.items.length;
+      g.newest = g.items[0].t;
+      g.oldest = g.items[g.items.length - 1].t;
+    });
+    out.sort(function (a, b) {
+      if (b.n !== a.n) return b.n - a.n;
+      return a.newest < b.newest ? 1 : -1;
+    });
+    return out;
+  }
+
+  function oneRow(it, withDay) {
+    var row = el("div", "er-row");
+    var tm = el("span", "tm");
+    var day = withDay ? dayOf(it) : "";
+    if (day) tm.appendChild(el("i", "d", String(day).slice(-5)));
+    tm.appendChild(document.createTextNode(it.t));
+    row.appendChild(tm);
+    row.appendChild(el("span", "lv " + (it.lv === "ERROR" ? "e" : "w"),
+      it.lv === "ERROR" ? "ERR" : "WARN"));
+    var tx = el("div", "tx");
+    tx.appendChild(el("em", null, "[" + it.src + "] "));
+    tx.appendChild(document.createTextNode(it.msg));
+    if (it.msg) tx.appendChild(fixBlock(it));
+    if (it.detail && it.detail.length) {
+      row.classList.add("has");
+      tx.appendChild(el("pre", "er-stack", it.detail.join("\n")));
+      tx.addEventListener("click", function () { row.classList.toggle("open"); });
+    }
+    row.appendChild(tx);
+    return row;
+  }
+
+  function groupRow(g) {
+    var row = el("div", "er-row grp");
+    row.appendChild(el("span", "tm", "×" + g.n));
+    row.appendChild(el("span", "lv " + (g.lv === "ERROR" ? "e" : "w"),
+      g.lv === "ERROR" ? "ERR" : "WARN"));
+    var tx = el("div", "tx");
+    tx.appendChild(el("em", null, "[" + g.src + "] "));
+    tx.appendChild(document.createTextNode(g.msg0));
+    var sub = el("div", "er-sub");
+    sub.appendChild(el("b", null, g.n + " 次"));
+    sub.appendChild(document.createTextNode(" · " + g.newest + (g.oldest === g.newest ? "" : " ~ " + g.oldest)));
+    tx.appendChild(sub);
+
+    if (g.items[0]) tx.appendChild(fixBlock(g.items[0]));
+
+    var stack = el("div", "er-stack");
+    g.items.forEach(function (it) {
+      var line = el("div", "er-one");
+      line.appendChild(el("span", "tm", it.t));
+      line.appendChild(el("span", "tx2", it.msg));
+      stack.appendChild(line);
+      if (it.detail && it.detail.length) stack.appendChild(el("pre", "er-detail", it.detail.join("\n")));
+    });
+    tx.appendChild(stack);
+    row.addEventListener("click", function () { row.classList.toggle("open"); });
+    row.appendChild(tx);
+    return row;
+  }
+
+  function renderErrors() {
+    var d = errData || {}, all = d.items || [];
+    var box = document.getElementById("erBody");
+    var list = all.filter(function (it) {
+      if (errFilter === "e") return it.lv === "ERROR";
+      if (errFilter === "w") return it.lv === "WARN";
+      return true;
+    });
+
+    var ce = (d.counts && d.counts.error) || 0, cw = (d.counts && d.counts.warn) || 0;
+    document.getElementById("erDate").textContent =
+      (d.date || "--") + (d.fallback ? " · 今天还没写日志，退回家最新那天" : "");
+    document.getElementById("erCntE").textContent = "E " + ce;
+    document.getElementById("erCntW").textContent = "W " + cw;
+    var badge = document.getElementById("errBadge");
+    badge.textContent = ce ? String(ce) : "";
+    badge.className = "cnt" + (ce ? " bad" : (cw ? " warn" : ""));
+
+    Array.prototype.forEach.call(document.querySelectorAll("#erSeg button"), function (b) {
+      b.classList.toggle("active", b.dataset.v === errFilter);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#erView button"), function (b) {
+      b.classList.toggle("active", b.dataset.v === errView);
+    });
+
+    box.innerHTML = "";
+    if (d.ok === false) { box.appendChild(el("div", "er-empty", d.msg || "日志读不到")); return; }
+    if (!list.length) {
+      box.appendChild(el("div", "er-empty",
+        (ce + cw) ? "这个级别今天没冒过头" : "今天一条报错都没有，安静得可疑"));
+      return;
+    }
+
+    box.classList.toggle("tv", errView === "time");
+    if (errView === "group") {
+      groupItems(list).forEach(function (g) {
+        box.appendChild(g.n > 1 ? groupRow(g) : oneRow(g.items[0]));
+      });
+    } else {
+      sortByTime(list).forEach(function (it) { box.appendChild(oneRow(it, true)); });
+    }
+    if (d.truncated) {
+      var kinds = errView === "group" ? groupItems(list).length : 0;
+      box.appendChild(el("div", "er-empty",
+        "只列最近 " + (d.shown || list.length) + " 条，更早的没往里塞" +
+        (kinds ? "（归成 " + kinds + " 类）" : "") +
+        (errView === "time" ? "，已按时间从新到旧排" : "") + "，点复制能拿到这份"));
+    }
+  }
+
+  document.getElementById("errBtn").addEventListener("click", toggleErrors);
+  document.getElementById("erRefresh").addEventListener("click", function () { loadErrors("manual"); });
+  document.getElementById("erView").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    errView = b.dataset.v;
+    renderErrors();
+  });
+  document.getElementById("erSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    errFilter = b.dataset.v;
+    renderErrors();
+  });
+  document.getElementById("erCopy").addEventListener("click", function () {
+    var d = errData || {};
+    var pick = (d.items || []).filter(function (it) {
+      return errFilter === "all" ? true : (errFilter === "e" ? it.lv === "ERROR" : it.lv === "WARN");
+    });
+    var lines = sortByTime(pick).map(function (it) {
+      var day = dayOf(it);
+      return (day ? day + " " : "") + it.t + " " + it.lv + " [" + it.src + "] " + it.msg;
+    });
+    var txt = "# " + (d.date || "-") + " 当日报错（E " +
+      ((d.counts && d.counts.error) || 0) + " / W " + ((d.counts && d.counts.warn) || 0) +
+      "）\n" + lines.join("\n");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function () { toast("这份报错已复制"); },
+        function () { toast("浏览器不让读剪贴板，手动选中吧", true); });
+    } else {
+      toast("这个环境没有剪贴板权限", true);
+    }
+  });
+
+  document.getElementById("statusBtn").addEventListener("click", function () {
+    if (statusEl.classList.contains("show")) closeStatus(); else openStatus();
+  });
+  document.getElementById("stRefresh").addEventListener("click", loadStatus);
+  document.getElementById("closeAll").addEventListener("click", function () {
+    closeStatus();
+    closeErrors();
+    syncCloseAll();
+  });
+
+  fetch(API + "/settings", { credentials: "include" })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (res && res.status === "ok" && res.data) {
+        var d = res.data;
+        state.mode = d.mode; state.scheme = d.scheme;
+        state.auto = !!d.auto; state.loop = !!d.loop; state.duration = d.duration || 14;
+      }
+    })
+    .catch(function () { toast("读不到面板配置，用默认值先跑", true); })
+    .then(function () {
+      sync(); load(); loadErrors("silent"); updateIdle();
+      tickClock(); setInterval(tickClock, 1000); idleNote();
+    });
+})();
+</script>
+</body>
+</html>

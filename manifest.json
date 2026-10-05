@@ -1,0 +1,26 @@
+{
+    "display_name": "550C Boot Sequence",
+    "plugin_id": "kira-ai-plugin-550c-boot",
+    "version": "1.6.0",
+    "author": "硳磲",
+    "description": "550C 无人机基站开机动画：把 Voidpoket 的单页动画接进 KiraAI 面板，支持简化/完整两种模式、四套配色与自动播放；播完展示适配器与主机实时状态；收起待机时保留 550C 动态台标，叠加实时时钟、链路/在线时长、CPU/内存/磁盘负载与版本号；主区可随时拉出当日 ERROR/WARNING 报错列表框（带堆栈、级别筛选、一键复制，以及逐条匹配的处理方案）；状态面板的用量区支持[概览/模型/金额]三视图：按模型统计调用与 token，并按内置价目表（人民币、缓存命中单独计价）折算 24h 已用金额。",
+    "repo": "https://github.com/kingzhen1/kira-ai-plugin-550c-boot",
+    "icon": "icon.png",
+    "core_version": ">=2.23.0",
+    "tags": [
+        "animation",
+        "page",
+        "ui",
+        "550c"
+    ],
+    "locales": {
+        "zh": {
+            "display_name": "550C 开机动画",
+            "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；动画结束后展示 NapCat/适配器链路与主机实时状态；收起后是带时钟与负载的待机台；中间可拉出当日报错列表框，按级别筛选、展开堆栈、一键复制，并附逐条处理方案；用量区新增[概览/模型/金额]三视图，按模型统计并可折算人民币已用金额（缓存命中单独计价，可外挂 prices.json 补价）。"
+        },
+        "en": {
+            "display_name": "550C Boot Sequence",
+            "description": "550C UAV base-station boot animation embedded as a KiraAI plugin page with a live status board (adapters / models / plugins / host) and a token & CNY cost view."
+        }
+    }
+}

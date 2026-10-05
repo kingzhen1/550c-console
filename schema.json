@@ -1,0 +1,46 @@
+{
+  "mode": {
+    "name": "播放模式",
+    "type": "enum",
+    "options": [
+      "simple",
+      "full",
+      "off"
+    ],
+    "default": "full",
+    "hint": "simple=只放 550C 标识点亮那一段；full=跑完整流程（自检/鉴权/链路/隧道/隔离/重写/校验/就绪/完成）；off=不播，只留黑屏待机。"
+  },
+  "scheme": {
+    "name": "配色方案",
+    "type": "enum",
+    "options": [
+      "amber",
+      "green",
+      "cyan",
+      "white"
+    ],
+    "default": "amber",
+    "hint": "amber=原稿琥珀色；green=绿色；cyan=青色；white=纯白。只换基础色，亮度层次保持原样。"
+  },
+  "auto_play": {
+    "name": "打开面板即自动播放",
+    "type": "switch",
+    "default": true,
+    "hint": "关闭后进面板会停在待机层，点一下画面才开始；手动点“重播”不受这项影响，必定从头播完。"
+  },
+  "loop": {
+    "name": "结束后自动重播",
+    "type": "switch",
+    "default": false,
+    "hint": "开启后动画放完会自动从头再来一次，适合当循环背景。"
+  },
+  "duration_hint": {
+    "name": "完整模式时长提示",
+    "type": "slider",
+    "min": 6,
+    "max": 30,
+    "step": 1,
+    "default": 24,
+    "hint": "面板上显示的目标时长（秒）。实测 full 模式整段约 24 秒，默认按实测值给。"
+  }
+}
