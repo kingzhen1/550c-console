@@ -1138,15 +1138,53 @@
   }
 
   /* ===== 方案库：每条报错该怎么收场 ===== */
-  var GENERIC_FIX = {
-    tag: "通用", cls: "", ttl: "这条还没进方案库，按这三步走",
-    why: "库里暂时没有它对得上的条目，但排查路子是固定的。",
-    fix: [
-      "先看它出在哪个来源：配置类（config / auth / settings）、链路类（napcat / ssh / provider）、代码类（tool_use / plugin）。",
-      "点上面那个「复制」，把这一份整段丢给我——有 stack 我能直接定位，别自己硬啃。",
-      "同一小时里反复冒且功能真的不正常 = 故障；只冒一两次、功能照常 = 噪音，把当天计数看一眼就放它过去。"
-    ]
+  /* 没进方案库时不摆烂：先按报错长相当场归类，给出这一类的固定排查路线 */
+  var FALLBACK = {
+    code: { tag: "代码", cls: "code", ttl: "像代码/接口层面的问题，按这三步走",
+      why: "报错里出现模块名、属性名、参数名这类东西，多半是代码调用对不上，不是配置写错。",
+      fix: [
+        "看 <code>No module named</code> / <code>has no attribute</code> 后面那个名字：核心改过接口就叫插件作者跟着改，别去翻配置。",
+        "点「复制」把这一整段连同 stack 丢给我，有调用栈能直接指到行，比自己猜快十倍。",
+        "同一个插件反复失败就先停用它，别让它每小时都往计数里灌一次。"
+      ] },
+    auth: { tag: "凭证", cls: "cfg", ttl: "像凭证/权限没过，按这三步走",
+      why: "报错里出现 token、key、401/403、未授权之类，说明身份这一关就没过去，后面的逻辑根本没跑到。",
+      fix: [
+        "到面板对应插件的配置里看那串 key/token 是不是空的、是不是过期了，填完保存要重载才生效。",
+        "限速类（rate limit）不是写错，是配额用完，等一小时或换个带 token 的身份。",
+        "确认打的是对端正式地址，测试地址常常不认正式凭证。"
+      ] },
+    net: { tag: "链路", cls: "env", ttl: "像链路/超时的问题，按这三步走",
+      why: "报错里出现 timeout、connect、refused、unreachable，说明请求根本没走到对端，或者等回音等到超时。",
+      fix: [
+        "先确认对端还活着、端口在听：在机器人那台机器上直接 curl 一下那个地址。",
+        "跑在容器里的 <code>127.0.0.1</code> 指的是容器自己，要换成宿主内网 IP。",
+        "偶发一两次是网络抖动，整片出现才是真的断了，别急着改配置。"
+      ] },
+    data: { tag: "数据", cls: "cfg", ttl: "像数据/格式对不上，按这三步走",
+      why: "报错里出现 ID、格式、parse、JSON、字段名这类，说明拿到的数据和它要的对不上号。",
+      fix: [
+        "看它拒掉的那个值长什么样：带空格、冒号、@ 的账号名，大多要换成纯数字 ID 再传。",
+        "让模型按格式回的那类任务，回不合格式就换更稳的快速模型，别用长上下文慢模型硬扛。",
+        "点「复制」把原文丢给我，能看出是输入脏了还是解析器太挑。"
+      ] },
+    plain: { tag: "通用", cls: "", ttl: "这条还没进方案库，按这三步走",
+      why: "库里暂时没有对得上的条目，但排查路子是固定的。",
+      fix: [
+        "先看它出在哪个来源：配置类（config / auth / settings）、链路类（napcat / ssh / provider）、代码类（tool_use / plugin）。",
+        "点上面那个「复制」，把这一份整段丢给我——有 stack 我能直接定位，别自己硬啃。",
+        "同一小时里反复冒且功能真的不正常 = 故障；只冒一两次、功能照常 = 噪音，把当天计数看一眼就放它过去。"
+      ] }
   };
+
+  function classify(src, msg) {
+    var t = String(src || "") + " " + String(msg || "");
+    if (/no module named|has no attribute|unexpected keyword|importerror|attributeerror|typeerror|traceback|not implemented/i.test(t)) return FALLBACK.code;
+    if (/token|api[_ ]?key|unauthor|forbidden|401|403|rate limit|凭证|授权|未配置|not configured|missing required/i.test(t)) return FALLBACK.auth;
+    if (/timeout|timed out|connect|refused|unreachable|websocket|reset by peer|超时|连接/i.test(t)) return FALLBACK.net;
+    if (/不合法|invalid|parse|json|decode|schema|field|实体 id|不合法的实体/i.test(t)) return FALLBACK.data;
+    return FALLBACK.plain;
+  }
 
   var SOLUTIONS = [
     { tag: "自身", cls: "", ttl: "模型把消息标签当工具发了，跟本体无关",
@@ -1281,6 +1319,60 @@
       fix: [
         "要用这个源就补上对应的 Key，配完重载插件。",
         "不想用就当它不存在，别让它占着报错位。"
+      ] },
+
+    { tag: "代码", cls: "code", ttl: "核心模块改了名，插件 import 还指着老路径",
+      k: [/core\.plugin\.plugin_registry/, /core\.adapter\.adapter_utils/, /No module named 'core\./],
+      why: "核心把模块挪了位置（plugin_registry 并进 core.plugin.registry，adapter_utils 那套拆成 adapter.base / adapter.capabilities），插件还按老路径 import，初始化阶段直接抛 ModuleNotFoundError。这不是配置问题，也不影响已加载的其他插件。",
+      fix: [
+        "改成新路径：<code>from core.plugin.registry import _plugin_schemas</code>；适配器基类换成 <code>core.adapter.base</code> 的 BaseAdapter + 对应 capability。",
+        "稳妥写法是 try 新路径、except ImportError 回退老路径，一份代码兼容两个核心版本。",
+        "只是 import 改名（如 tag-filter）改完重载即可；依赖整套适配器接口的（如 B 站私信）光改 import 无效，要么重写要么先停用。"
+      ] },
+
+    { tag: "链路", cls: "env", ttl: "微信发不出去：拿不到 context token 就直接跳过发送",
+      k: [/context token missing/, /skip send/, /session timeout, clearing invalid token/],
+      why: "微信这套通道回复要带一个 context token（来自上一条收到的消息）。拿不到就把这次发送静默跳过——日志只有一条 skip send 的 WARNING，上层却已经按“发送成功”记账，于是出现“我这边发出去了、你那边没收到”。",
+      fix: [
+        "先确认那条要被回复的消息是当天真收到的、且 token 没过期；<code>session timeout, clearing invalid token</code> 就是它刚被清掉的信号。",
+        "要主动开口就先有输入：让对端发一句话进来再回，别指望这个通道能凭空推送。",
+        "排查时以 <code>skip send</code> 为准，不要以“发送成功”的返回值为准，这是最容易误判成掉线的一条。"
+      ] },
+
+    { tag: "记忆", cls: "cfg", ttl: "实体 ID 不合法：带空格或 @ 的账号名进不了库",
+      k: [/不合法的实体 ID/],
+      why: "记忆/画像按实体 ID 建档，而那张表只认纯数字 QQ 号或规范化过的 ID。像 <code>Twilight﹌ 硳磲:927678950</code>、<code>xxx@im.wechat</code> 这种带空格、冒号、@ 的名字会被直接拒，于是抽取出来的记忆一条条进不去，还在后台不停重试。",
+      fix: [
+        "取 ID 时只取纯数字段：<code>927678950</code>，不要拼昵称、加会话前缀。",
+        "微信侧先把 <code>o...@im.wechat</code> 映射成一个稳定的内部 ID，再写库。",
+        "已经堆起来的 <code>re-buffered N chunks for retry</code> 会在改好之后一次性落库，不用手动清。"
+      ] },
+
+    { tag: "环境", cls: "env", ttl: "适配器自己崩了，整条链路跟着停",
+      k: [/stopped after a run failure/, /Adapter .* run failure/],
+      why: "某个适配器的主循环抛出未捕获异常，管理侧把它整个停掉，这个平台从此既不收也不发。前面通常紧挨着一条真正的根因（超时、token 失效、接口变动）。",
+      fix: [
+        "往上翻到这条之前的那条 ERROR，那才是根因，别只盯着“stopped”。",
+        "根因修完重载该适配器即可恢复，不用重启整个进程。",
+        "反复自停说明是稳定复现的 bug，先把它停用，别让它每次重启都拖一遍日志。"
+      ] },
+
+    { tag: "链路", cls: "env", ttl: "翻历史两条路都断了（WS 与 HTTP 全失败）",
+      k: [/history_tool/, /object has no attribute 'send_action'/, /HTTP page failed/],
+      why: "拉历史先走 WebSocket 的 send_action，再退回 HTTP。当前适配器没实现 send_action，WS 那条必然报 AttributeError；HTTP 又连不上对端，于是两条腿一起断，上层就表现为“翻不动记录”。",
+      fix: [
+        "这是适配器能力缺口 + 对端不可达叠加，不是记忆丢了，别当成“记不得”。",
+        "WS 那条要适配器补 <code>send_action</code>；HTTP 那条先确认对端地址和端口通不通。",
+        "临时要看内容，直接在本平台问一句，本地上下文里就有，不必走历史接口。"
+      ] },
+
+    { tag: "记忆", cls: "cfg", ttl: "记忆合并失败，条目被丢弃",
+      k: [/Failed to merge memory/, /memory_extractor/],
+      why: "抽取出的新记忆要并入旧条目，合并时模型没按格式回或实体 ID 被拒，这条就丢了。多数情况是上面那条“实体 ID 不合法”的连带伤。",
+      fix: [
+        "先修实体 ID，这一片会跟着消失。",
+        "合并用的模型换成更快更稳的，别用长上下文慢模型硬扛。",
+        "偶发一两条无妨，成片出现才说明是 ID 或模型格式的问题。"
       ] }
   ];
 
@@ -1292,7 +1384,7 @@
         if (s.k[j].test(hay)) return s;
       }
     }
-    return GENERIC_FIX;
+    return classify(src, msg);
   }
 
   // 挂在每条报错下面：一个按钮，点开是照着这类日志写好的处理办法
