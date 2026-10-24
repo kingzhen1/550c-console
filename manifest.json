@@ -1,9 +1,9 @@
 {
     "display_name": "550C 操作台",
     "plugin_id": "kira-ai-plugin-550c-boot",
-    "version": "1.6.1",
+    "version": "1.6.2",
     "author": "硳磲",
-    "description": "550C 无人机基站开机动画：把 Voidpoket 的单页动画接进 KiraAI 面板，支持简化/完整两种模式、四套配色与自动播放；播完展示适配器与主机实时状态；收起待机时保留 550C 动态台标，叠加实时时钟、链路/在线时长、CPU/内存/磁盘负载与版本号；主区可随时拉出当日 ERROR/WARNING 报错列表框（带堆栈、级别筛选、一键复制，以及逐条匹配的处理方案）；状态面板的用量区支持[概览/模型/金额]三视图：按模型统计调用与 token，并按内置价目表（人民币、缓存命中单独计价）折算 24h 已用金额。\n\n【v1.6.1 更新内容】报错方案库补录三条常客：① Tool msg not implemented —— 模型把消息标签当工具发了，自身书写失误，忽略重发即可；② 取不到网络 IO（/proc/net/dev 不可读）—— capability 被剥的环境限制，建议该栏优雅降级并压低日志级别；③ NapCat WebSocket 未连接 —— 链路断开，取表情/引用/历史会连带全失败，ws 恢复后整片消失。本版仅补方案与文案，功能无破坏性改动。",
+    "description": "550C 无人机基站开机动画：把 Voidpoket 的单页动画接进 KiraAI 面板，支持简化/完整两种模式、四套配色与自动播放；播完展示适配器与主机实时状态；收起待机时保留 550C 动态台标，叠加实时时钟、链路/在线时长、CPU/内存/磁盘负载与版本号；主区可随时拉出当日 ERROR/WARNING 报错列表框（带堆栈、级别筛选、一键复制，以及逐条匹配的处理方案）；状态面板的用量区支持[概览/模型/金额]三视图：按模型统计调用与 token，并按内置价目表（人民币、缓存命中单独计价）折算 24h 已用金额。\n\n【v1.6.2 更新内容】报错方案库扩到 21 条，新增六条高频条目：① 核心模块改名（plugin_registry → core.plugin.registry、adapter_utils 拆成 base/capabilities）导致的 ModuleNotFoundError，含新老路径兼容写法；② 微信链路 context token 缺失时静默跳过发送（日志只有 skip send，上层却按成功记账）；③ 实体 ID 不合法（带空格/冒号/@ 的账号名）导致记忆抽取整片失败并在后台反复重试；④ 适配器 run 失败后自我保护停机，需回溯前一条真根因；⑤ 跨平台翻历史 WS 与 HTTP 双路失败；⑥ 记忆合并失败条目被丢弃。另将「未命中方案库」的兜底提示改为按报错长相当场归类（代码/凭证/链路/数据/通用）给出对应排查路线，不再只回一句「库里没有」。本版仅补方案与文案，功能无破坏性改动。",
     "repo": "https://github.com/kingzhen1/550c-console",
     "icon": "icon.png",
     "core_version": ">=2.23.0",
@@ -16,11 +16,11 @@
     "locales": {
         "zh": {
             "display_name": "550C 操作台",
-            "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；动画结束后展示 NapCat/适配器链路与主机实时状态；收起后是带时钟与负载的待机台；中间可拉出当日报错列表框，按级别筛选、展开堆栈、一键复制，并附逐条处理方案；用量区支持[概览/模型/金额]三视图，按模型统计并可折算人民币已用金额（缓存命中单独计价，可外挂 prices.json 补价）。\n\nv1.6.1：方案库补录三条 —— Tool msg not implemented（模型自身写错调用，忽略即可）、/proc/net/dev 取不到网络 IO（环境限制，建议优雅降级）、NapCat WebSocket 未连接（链路断开，连带动作一并失败）。"
+            "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；动画结束后展示 NapCat/适配器链路与主机实时状态；收起后是带时钟与负载的待机台；中间可拉出当日报错列表框，按级别筛选、展开堆栈、一键复制；用量区支持[概览/模型/金额]三视图，按模型统计并可折算人民币已用金额（缓存命中单独计价，可外挂 prices.json 补价）。\n\nv1.6.2：处理方案库扩到 21 条，新增核心模块改名、微信 context token 缺失导致跳过发送、实体 ID 不合法、适配器自停、跨平台翻历史双路失败、记忆合并失败六类；未命中条目改为按报错长相当场归类（代码/凭证/链路/数据/通用），给出这一类固定的排查路线。"
         },
         "en": {
             "display_name": "550C Console",
-            "description": "550C UAV base-station boot animation embedded as a KiraAI plugin page with a live status board (adapters / models / plugins / host) and a token & CNY cost view.\n\nv1.6.1: three new error-solution recipes (tool-msg not implemented, /proc/net/dev network IO unavailable, NapCat WebSocket offline); no breaking changes."
+            "description": "550C UAV base-station boot animation embedded as a KiraAI plugin page with a live status board (adapters / models / plugins / host) and a token & CNY cost view.\n\nv1.6.2: solution library grown to 21 recipes (renamed core modules, WeChat context-token skip-send, invalid entity IDs, adapter self-stop, cross-platform history failures, memory merge failures); unmatched errors are now classified on the fly (code / credential / network / data / generic) with a tailored troubleshooting path; no breaking changes."
         }
     }
 }
