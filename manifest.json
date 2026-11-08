@@ -1,9 +1,9 @@
 {
     "display_name": "550C 操作台",
     "plugin_id": "kira-ai-plugin-550c-boot",
-    "version": "1.7.0",
+    "version": "1.7.1",
     "author": "硳磲",
-    "description": "【原作者】哔哩哔哩 @图寻患者 @某人在此处 —— 原版 550C 操作台运行于 DeepSeek Harness(dsh)，不适配 KiraAI；本插件为其 KiraAI 适配与扩展版，原作者保留全部署名权。\n\n550C 无人机基站开机动画：把 Voidpoket 的单页动画接进 KiraAI 面板，支持简化/完整两种模式、四套配色与自动播放；播完展示适配器与主机实时状态；收起待机时保留 550C 动态台标，叠加实时时钟、链路/在线时长、CPU/内存/磁盘负载与版本号；主区可随时拉出当日 ERROR/WARNING 报错列表框（带堆栈、级别筛选、一键复制，以及逐条匹配的处理方案）；状态面板的用量区支持[概览/模型/金额]三视图：按模型统计调用与 token，并按内置价目表（人民币、缓存命中单独计价）折算 24h 已用金额。\n\n【v1.7.0 新增】① 采样落盘与趋势折线：每次轮询把 CPU/内存/磁盘/token 追加进 samples.jsonl（20 秒一点、最多 4320 点），状态面板底部按设备像素比画三条 canvas 折线，磁盘这种「缓慢爬升」的指标终于能看出还有多久满；② 阈值告警：内存/磁盘/CPU 越线、或适配器 dead/ws 断开/已连接未登录时，面板顶部亮出横幅，同一告警 10 分钟内只推一次，配置了 alert_webhook 还会 POST JSON 出去；③ 日报/周报导出：状态面板右上两个按钮，把当前主机、趋势极值、24h 用量、当前告警与报错归并表拼成一份 Markdown 直接下载；④ 报错接口新增 groups（按噪声归一化后归并计数）与 by_hour（按小时分布），供报告与后续图表使用，原 items 结构不变；⑤ 诊断包导出：把当前状态、适配器链路、告警、报错归并、趋势采样打成一个 JSON 整份下载，排查时不用来回截图；⑥ 投屏页接线：show.html 的 UPLINK/NODES/SESSION 原是硬编码演示值，现改为接收面板 postMessage 的真实状态（STABLE/DEGRADED/SEVERED、在线数/总数、开机时长），iframe 重载后自动重喂；⑦ 新增 trend_hours / alert_* 配置项。全部为增量改动，旧配置与旧接口调用方式保持兼容。\n\n【v1.6.2 更新内容】报错方案库扩到 21 条，新增六条高频条目：① 核心模块改名（plugin_registry → core.plugin.registry、adapter_utils 拆成 base/capabilities）导致的 ModuleNotFoundError，含新老路径兼容写法；② 微信链路 context token 缺失时静默跳过发送（日志只有 skip send，上层却按成功记账）；③ 实体 ID 不合法（带空格/冒号/@ 的账号名）导致记忆抽取整片失败并在后台反复重试；④ 适配器 run 失败后自我保护停机，需回溯前一条真根因；⑤ 跨平台翻历史 WS 与 HTTP 双路失败；⑥ 记忆合并失败条目被丢弃。另将「未命中方案库」的兜底提示改为按报错长相当场归类（代码/凭证/链路/数据/通用）给出对应排查路线，不再只回一句「库里没有」。本版仅补方案与文案，功能无破坏性改动。",
+    "description": "把 550C 无人机基站开机动画接进 KiraAI 面板：播完展示适配器与主机实时状态，收起后是带时钟与负载的待机台，可拉出当日报错列表与用量/金额视图。\n原版出自哔哩哔哩 @图寻患者、@某人在此处（DeepSeek Harness 版），本插件为 KiraAI 适配与扩展，详见 README。",
     "repo": "https://github.com/kingzhen1/550c-console",
     "icon": "icon.png",
     "core_version": ">=2.23.0",
@@ -16,11 +16,11 @@
     "locales": {
         "zh": {
             "display_name": "550C 操作台",
-            "description": "【原作者】哔哩哔哩 @图寻患者、@某人在此处（原版为 DeepSeek Harness 版，本插件为 KiraAI 适配与扩展）\n\n550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；动画结束后展示 NapCat/适配器链路与主机实时状态；收起后是带时钟与负载的待机台；中间可拉出当日报错列表框，按级别筛选、展开堆栈、一键复制；用量区支持[概览/模型/金额]三视图，按模型统计并可折算人民币已用金额（缓存命中单独计价，可外挂 prices.json 补价）。\n\nv1.6.2：处理方案库扩到 21 条，新增核心模块改名、微信 context token 缺失导致跳过发送、实体 ID 不合法、适配器自停、跨平台翻历史双路失败、记忆合并失败六类；未命中条目改为按报错长相当场归类（代码/凭证/链路/数据/通用），给出这一类固定的排查路线。"
+            "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；播完展示适配器与主机状态；待机时带时钟与负载；可拉出当日报错列表与用量/金额视图。\n原版为 DeepSeek Harness 版，作者 @图寻患者、@某人在此处；本插件为 KiraAI 适配与扩展，详见 README。"
         },
         "en": {
             "display_name": "550C Console",
-            "description": "Original authors: Bilibili @图寻患者 & @某人在此处 (original build targeted DeepSeek Harness; this is the KiraAI port).\n\n550C UAV base-station boot animation embedded as a KiraAI plugin page with a live status board (adapters / models / plugins / host) and a token & CNY cost view.\n\nv1.6.2: solution library grown to 21 recipes (renamed core modules, WeChat context-token skip-send, invalid entity IDs, adapter self-stop, cross-platform history failures, memory merge failures); unmatched errors are now classified on the fly (code / credential / network / data / generic) with a tailored troubleshooting path; no breaking changes."
+            "description": "550C UAV base-station boot animation as a KiraAI plugin page: live adapter/host status after boot, a clock+load standby panel, a daily error list and a token/CNY usage view.\nOriginal DeepSeek Harness build by Bilibili @图寻患者 & @某人在此处; this is the KiraAI port. See README for details."
         }
     },
     "original_authors": [
