@@ -2,23 +2,14 @@
   "mode": {
     "name": "播放模式",
     "type": "enum",
-    "options": [
-      "simple",
-      "full",
-      "off"
-    ],
+    "options": ["simple", "full", "off"],
     "default": "full",
     "hint": "simple=只放 550C 标识点亮那一段；full=跑完整流程（自检/鉴权/链路/隧道/隔离/重写/校验/就绪/完成）；off=不播，只留黑屏待机。"
   },
   "scheme": {
     "name": "配色方案",
     "type": "enum",
-    "options": [
-      "amber",
-      "green",
-      "cyan",
-      "white"
-    ],
+    "options": ["amber", "green", "cyan", "white"],
     "default": "amber",
     "hint": "amber=原稿琥珀色；green=绿色；cyan=青色；white=纯白。只换基础色，亮度层次保持原样。"
   },
@@ -35,12 +26,69 @@
     "hint": "开启后动画放完会自动从头再来一次，适合当循环背景。"
   },
   "duration_hint": {
-    "name": "完整模式时长提示",
-    "type": "slider",
-    "min": 6,
-    "max": 30,
-    "step": 1,
+    "name": "完整模式时长提示（秒）",
+    "type": "integer",
     "default": 24,
-    "hint": "面板上显示的目标时长（秒）。实测 full 模式整段约 24 秒，默认按实测值给。"
+    "hint": "面板上显示的目标时长，6 到 30 秒。实测 full 模式整段约 24 秒，默认按实测值给。"
+  },
+  "alert_enabled": {
+    "name": "阈值告警",
+    "type": "switch",
+    "default": true,
+    "hint": "内存/磁盘/CPU 越过阈值、或适配器链路断开时，在面板顶部亮出告警横幅；若在插件配置里另填了 alert_webhook 地址，还会向该地址 POST 一条 JSON。同一告警 10 分钟内只推一次。"
+  },
+  "alert_disk": {
+    "name": "磁盘告警阈值（%）",
+    "type": "integer",
+    "default": 90,
+    "hint": "磁盘占用到这个百分比就告警，50 到 99。日志和附件都在往里堆，建议别设太高——90% 以上随时可能写满。"
+  },
+  "alert_mem": {
+    "name": "内存告警阈值（%）",
+    "type": "integer",
+    "default": 90,
+    "hint": "物理内存占用到这个百分比就告警，50 到 99。"
+  },
+  "alert_cpu": {
+    "name": "CPU 告警阈值（%）",
+    "type": "integer",
+    "default": 95,
+    "hint": "CPU 占用到这个百分比就告警，50 到 100。模型推理和图片处理期间短时冲高属正常，所以默认给得比较高。"
+  },
+  "alert_webhook": {
+    "name": "告警推送地址（可选）",
+    "type": "string",
+    "default": "",
+    "hint": "填了就往这个地址 POST 一条 JSON（source/ts/alerts）。不填就只在面板顶部显示，不外发。"
+  },
+  "trend_hours": {
+    "name": "趋势图时间范围（小时）",
+    "type": "integer",
+    "default": 24,
+    "hint": "状态面板里趋势折线画多长时间，6 到 168。每次轮询采样一个点（20 秒一个），所以刚装上的头几个小时曲线会比较短。"
+  },
+  "auto_update": {
+    "name": "插件自动更新",
+    "type": "switch",
+    "default": true,
+    "hint": "开启后按下面的间隔自己检查市场，把已装插件的旧版本换成新版。不会新装任何插件，也不会动 550C 自己和 kira_ops。关掉就是纯查看，一次都不换。"
+  },
+  "update_interval_hours": {
+    "name": "多久检查一次（小时）",
+    "type": "integer",
+    "default": 6,
+    "hint": "1 到 168 小时。到点才会动，中途重启不会提前——开机后的第一次从当前时刻往后算一个周期。"
+  },
+  "update_max_per_run": {
+    "name": "每次最多更新几个",
+    "type": "integer",
+    "default": 3,
+    "hint": "1 到 10。宁可多跑几轮，也别一口气把整台机器掀翻；每个插件之间还隔 6 秒。"
+  },
+  "update_exclude": {
+    "name": "永不更新的插件（plugin_id）",
+    "type": "string",
+    "default": "",
+    "hint": "多个用逗号隔开，例如 kira_ops,my-own-patch。550C 自己与 kira_ops 已经被硬性排除，写不写都拦着。"
   }
 }
