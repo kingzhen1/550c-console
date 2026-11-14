@@ -1,9 +1,9 @@
 {
     "display_name": "550C 操作台",
     "plugin_id": "kira-ai-plugin-550c-boot",
-    "version": "1.7.1",
+    "version": "1.8.0",
     "author": "硳磲",
-    "description": "把 550C 无人机基站开机动画接进 KiraAI 面板：播完展示适配器与主机实时状态，收起后是带时钟与负载的待机台，可拉出当日报错列表与用量/金额视图。\n原版出自哔哩哔哩 @图寻患者、@某人在此处（DeepSeek Harness 版），本插件为 KiraAI 适配与扩展，详见 README。",
+    "description": "把 550C 无人机基站开机动画接进 KiraAI 面板：播完展示适配器与主机实时状态，收起后是带时钟与负载的待机台，可拉出当日报错列表与用量/金额视图。1.8.0 起自带插件自动更新：定时对照市场给已装插件换新版，换前备份、失败回滚、连续失败拉黑，绝不新装、绝不动自己和 kira_ops。\n原版出自哔哩哔哩 @图寻患者、@某人在此处（DeepSeek Harness 版），本插件为 KiraAI 适配与扩展，详见 README。",
     "repo": "https://github.com/kingzhen1/550c-console",
     "icon": "icon.png",
     "core_version": ">=2.23.0",
@@ -16,11 +16,11 @@
     "locales": {
         "zh": {
             "display_name": "550C 操作台",
-            "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；播完展示适配器与主机状态；待机时带时钟与负载；可拉出当日报错列表与用量/金额视图。\n原版为 DeepSeek Harness 版，作者 @图寻患者、@某人在此处；本插件为 KiraAI 适配与扩展，详见 README。"
+            "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；播完展示适配器与主机状态；待机时带时钟与负载；可拉出当日报错列表与用量/金额视图。1.8.0 起自带插件自动更新（备份、回滚、黑名单，不新装不碰自己）。\n原版为 DeepSeek Harness 版，作者 @图寻患者、@某人在此处；本插件为 KiraAI 适配与扩展，详见 README。"
         },
         "en": {
             "display_name": "550C Console",
-            "description": "550C UAV base-station boot animation as a KiraAI plugin page: live adapter/host status after boot, a clock+load standby panel, a daily error list and a token/CNY usage view.\nOriginal DeepSeek Harness build by Bilibili @图寻患者 & @某人在此处; this is the KiraAI port. See README for details."
+            "description": "550C UAV base-station boot animation as a KiraAI plugin page: live adapter/host status after boot, a clock+load standby panel, a daily error list and a token/CNY usage view. Since 1.8.0 it also auto-updates installed plugins against the market (backup, rollback, failure blacklist) without installing new ones or touching itself.\nOriginal DeepSeek Harness build by Bilibili @图寻患者 & @某人在此处; this is the KiraAI port. See README for details."
         }
     },
     "original_authors": [
