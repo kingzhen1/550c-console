@@ -14,6 +14,11 @@ from pathlib import Path
 
 from core.plugin import BasePlugin, PluginContext, register, PageMenu, PluginPage, logger
 
+try:
+    from .updater import AutoUpdater
+except ImportError:  # 离线自测时本文件不是包，退回平级导入
+    from updater import AutoUpdater
+
 PLUGIN_ID = "kira-ai-plugin-550c-boot"
 
 MODE_OPTIONS = ("simple", "full", "off")
@@ -24,7 +29,42 @@ DEFAULTS = {
     "auto_play": True,
     "loop": False,
     "duration_hint": 24,
+    # 告警默认值：阈值按“先能看见”给，不想被打扰可以直接关掉总开关
+    "alert_enabled": True,
+    "alert_disk": 90,
+    "alert_mem": 90,
+    "alert_cpu": 95,
+    "alert_webhook": "",
+    # 趋势图保留小时数
+    "trend_hours": 24,
 }
+
+# 报错归并时抹掉的噪声：时间戳、端口、计数、十六进制地址这类每次都变的部分。
+# 不抹掉的话“重连失败 59 次”和“重连失败 42 次”会被当成两类报错。
+_ERR_NOISE = (
+    (re.compile(r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\b"), "<ts>"),
+    (re.compile(r"\b0x[0-9a-fA-F]+\b"), "<hex>"),
+    (re.compile(r"\b\d+\.\d+\.\d+\.\d+(?::\d+)?\b"), "<ip>"),
+    (re.compile(r"\b\d+(?:\.\d+)?\s*(?:秒|分钟|小时|s|ms|次|个|条|字节|KB|MB|GB|B)\b"), "<n>"),
+    (re.compile(r"\b\d+\b"), "<n>"),
+)
+
+
+def _err_key(src: str, msg: str) -> str:
+    """把一条报错压成稳定的归并键：同一类反复刷屏应该合成一行。"""
+    text = f"{src or ''}|{msg or ''}"
+    for pattern, repl in _ERR_NOISE:
+        text = pattern.sub(repl, text)
+    return text[:160]
+
+
+def _err_head(msg: str, width: int = 72) -> str:
+    """归并行的显示标题，取归一化后最有辨识度的开头。"""
+    clean = msg or ""
+    for pattern, repl in _ERR_NOISE:
+        clean = pattern.sub(repl, clean)
+    clean = " ".join(clean.split())
+    return clean[:width]
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +218,12 @@ class Boot550CPlugin(BasePlugin):
         self.web_dir = Path(__file__).parent / "web"
         # 每个适配器的首次在线时刻，用来在状态面板上算“已在线多久”
         self._online_since: dict = {}
+        # 采样节流：面板开多个标签页时不重复记点
+        self._last_sample_at = 0.0
+        # 告警冷却：同一条告警在窗口内只推一次，避免刷屏
+        self._alert_sent: dict = {}
+        # 自动更新器：initialize 里挂上，terminate 里摘掉
+        self.updater = None
         self._warm_cpu()
 
     @staticmethod
@@ -500,6 +546,34 @@ class Boot550CPlugin(BasePlugin):
                 if len(tail) < 12:
                     tail.append(ln[:300])
 
+        # 归并：同一类报错反复刷屏时，面板该看到「几次」而不是「几条」。
+        # NapCat 重连失败那种一分钟几十条的情况，不归并根本没法看。
+        bucket = {}
+        by_hour = {}
+        for it in items:
+            key = _err_key(it.get("src") or "", it.get("msg") or "")
+            g = bucket.get(key)
+            if g is None:
+                g = {
+                    "key": key[:40],
+                    "n": 0,
+                    "lv": it["lv"],
+                    "src": it.get("src") or "-",
+                    "head": _err_head(it.get("msg") or ""),
+                    "first": it.get("t"),
+                    "last": it.get("t"),
+                }
+                bucket[key] = g
+            g["n"] += 1
+            g["last"] = it.get("t")
+            if it["lv"] == "ERROR":
+                g["lv"] = "ERROR"
+            hour = str(it.get("t") or "")[:2]
+            if len(hour) == 2 and hour.isdigit():
+                by_hour[hour] = by_hour.get(hour, 0) + 1
+
+        groups = sorted(bucket.values(), key=lambda x: x["n"], reverse=True)
+
         kept = list(reversed(items[-limit:]))
         return {
             "ok": True,
@@ -508,6 +582,8 @@ class Boot550CPlugin(BasePlugin):
             "counts": {"error": err, "warn": warn},
             "shown": len(kept),
             "truncated": len(items) > limit,
+            "groups": groups[:80],
+            "by_hour": by_hour,
             "items": kept,
         }
 
@@ -537,6 +613,179 @@ class Boot550CPlugin(BasePlugin):
             logger.error("[550C] 采集主机状态失败：%s", exc)
             return {"ok": False, "msg": str(exc)}
 
+    # ---- 采样：把每次轮询的现值落盘，才有趋势可画 ------------------
+    # 之前面板只有「当前值」，磁盘 91% 这种数字没有曲线就看不出还有多久满，
+    # 内存涨到什么程度、token 什么时候冲起来也全都看不见。
+    # 每次 /status 采一条，20 秒一条，24h 约 4320 条，单条不到 100 字节。
+    _SAMPLE_NAME = "samples.jsonl"
+    _SAMPLE_KEEP = 4320        # 24h @ 20s
+    _SAMPLE_MIN_GAP = 15       # 两个标签页同时轮询时别重复记
+
+    def _sample_path(self) -> Path:
+        return Path(__file__).parent / self._SAMPLE_NAME
+
+    def _append_sample(self, status: dict) -> None:
+        """追加一条采样。任何异常都吞掉——采样不该影响状态接口。"""
+        now = int(time.time())
+        if now - self._last_sample_at < self._SAMPLE_MIN_GAP:
+            return
+        host = status.get("host") or {}
+        tokens = status.get("tokens") or {}
+        row = {
+            "t": now,
+            "cpu": host.get("cpu"),
+            "mem": host.get("mem"),
+            "disk": host.get("disk"),
+            "tok": tokens.get("total") if isinstance(tokens, dict) else None,
+        }
+        try:
+            path = self._sample_path()
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            self._last_sample_at = now
+        except Exception as exc:
+            logger.debug("[550C] 采样写入失败：%s", exc)
+            return
+        try:
+            if path.stat().st_size > self._SAMPLE_KEEP * 160:
+                self._trim_samples(path)
+        except Exception:
+            pass
+
+    def _trim_samples(self, path: Path) -> None:
+        """超量时只保留最近 _SAMPLE_KEEP 行，重写而不是删文件。"""
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            if len(lines) <= self._SAMPLE_KEEP:
+                return
+            path.write_text("\n".join(lines[-self._SAMPLE_KEEP:]) + "\n", encoding="utf-8")
+        except Exception as exc:
+            logger.debug("[550C] 采样裁剪失败：%s", exc)
+
+    def _load_samples(self, hours: int = 24) -> list:
+        """读回最近 N 小时的采样点，坏行跳过。"""
+        path = self._sample_path()
+        if not path.is_file():
+            return []
+        cutoff = int(time.time()) - max(1, hours) * 3600
+        out = []
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception as exc:
+            logger.error("[550C] 采样读取失败：%s", exc)
+            return []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if int(row.get("t") or 0) >= cutoff:
+                out.append(row)
+        return out
+
+    # ---- 阈值告警 ---------------------------------------------------
+    _ALERT_COOL = 600   # 同一条告警 10 分钟内不重复推
+
+    def _evaluate_alerts(self, status: dict) -> list:
+        """按阈值把当前状态折成告警清单。前端拿它画横幅，webhook 拿它推消息。"""
+        cfg = self.plugin_cfg or {}
+        if not bool(cfg.get("alert_enabled", DEFAULTS["alert_enabled"])):
+            return []
+
+        out = []
+        host = status.get("host") or {}
+        if host.get("ok"):
+            for key, label, opt in (
+                ("disk", "磁盘", "alert_disk"),
+                ("mem", "内存", "alert_mem"),
+                ("cpu", "CPU", "alert_cpu"),
+            ):
+                pct = host.get(key)
+                if pct is None:
+                    continue
+                try:
+                    pct = float(pct)
+                    limit = float(cfg.get(opt) or DEFAULTS[opt])
+                except Exception:
+                    continue
+                if pct < limit:
+                    continue
+                # 贴着阈值是 warn，超过阈值 5 个点以上算 bad
+                lv = "bad" if pct >= min(99.5, limit + 5) else "warn"
+                out.append({
+                    "id": f"host-{key}",
+                    "lv": lv,
+                    "title": f"{label} {pct:.1f}%",
+                    "detail": f"已超过阈值 {limit:g}%",
+                })
+
+        # 链路：配置里开着、却拿不到连接，就是断了。这正是 NapCat 反复重连的那类问题。
+        for row in status.get("adapters") or []:
+            if not row.get("enabled") or not row.get("live"):
+                continue
+            name = row.get("name") or row.get("id") or "-"
+            if row.get("dead"):
+                out.append({
+                    "id": f"link-dead-{row.get('id')}",
+                    "lv": "bad",
+                    "title": f"{name} 已自我保护停机",
+                    "detail": "适配器判定永久断开，需要回看前一条真根因",
+                })
+            elif row.get("socket") is False:
+                out.append({
+                    "id": f"link-socket-{row.get('id')}",
+                    "lv": "bad",
+                    "title": f"{name} WebSocket 未连接",
+                    "detail": "取表情 / 引用消息 / 翻历史会连带失败，恢复后整片消失",
+                })
+            elif row.get("logged_in") is False:
+                out.append({
+                    "id": f"link-login-{row.get('id')}",
+                    "lv": "warn",
+                    "title": f"{name} 已连接但未登录",
+                    "detail": "socket 在，登录事件没等到，消息可能发不出去",
+                })
+        return out
+
+    async def _notify_webhook(self, alerts: list) -> None:
+        """把新增告警 POST 到配置里的 webhook。没配就什么都不做。"""
+        url = str((self.plugin_cfg or {}).get("alert_webhook") or "").strip()
+        if not url.startswith(("http://", "https://")) or not alerts:
+            return
+
+        now = time.time()
+        fresh = []
+        for item in alerts:
+            key = str(item.get("id") or "")
+            if now - float(self._alert_sent.get(key) or 0) < self._ALERT_COOL:
+                continue
+            fresh.append(item)
+        if not fresh:
+            return
+
+        payload = json.dumps(
+            {"source": "550C 操作台", "ts": int(now), "alerts": fresh},
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        def _post() -> int:
+            import urllib.request
+
+            req = urllib.request.Request(
+                url, data=payload, headers={"Content-Type": "application/json; charset=utf-8"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return int(getattr(resp, "status", 0) or 0)
+
+        code = await asyncio.to_thread(_post)
+        if 200 <= code < 300:
+            for item in fresh:
+                self._alert_sent[str(item.get("id") or "")] = now
+            logger.info("[550C] 已推送 %d 条告警", len(fresh))
+
     async def _collect_status(self) -> dict:
         return {
             "ts": int(time.time()),
@@ -546,6 +795,9 @@ class Boot550CPlugin(BasePlugin):
             "tokens": await self._token_row(),
             "host": self._host_row(),
             "plugins": await asyncio.to_thread(self._plugin_rows),
+            # 自动更新那块要读插件清单，也丢线程里
+            "updater": (await asyncio.to_thread(self.updater.status)
+                        if getattr(self, "updater", None) is not None else None),
         }
 
     def _version(self) -> str:
@@ -566,7 +818,21 @@ class Boot550CPlugin(BasePlugin):
         else:
             logger.info("[550C] 开机动画已就绪，面板配置：%s", self._settings())
 
+        # 自动更新：一个后台协程，到点自己跑，不吵人
+        try:
+            self.updater = AutoUpdater(self)
+            await self.updater.start()
+        except Exception as exc:
+            logger.error("[550C] 自动更新没挂起来：%s", exc)
+            self.updater = None
+
     async def terminate(self):
+        if self.updater is not None:
+            try:
+                await self.updater.stop()
+            except Exception as exc:
+                logger.warning("[550C] 自动更新收尾失败：%s", exc)
+            self.updater = None
         logger.info("[550C] 控制台已卸载")
 
     def _settings(self) -> dict:
@@ -604,7 +870,208 @@ class Boot550CPlugin(BasePlugin):
 
     @register.api("GET", "/status")
     async def api_status(self):
-        return {"status": "ok", "data": await self._collect_status()}
+        data = await self._collect_status()
+        # 采样落盘：趋势要历史，光有现值画不出曲线
+        await asyncio.to_thread(self._append_sample, data)
+        alerts = self._evaluate_alerts(data)
+        data["alerts"] = alerts
+        if alerts:
+            try:
+                await self._notify_webhook(alerts)
+            except Exception as exc:
+                logger.warning("[550C] 告警推送失败：%s", exc)
+        return {"status": "ok", "data": data}
+
+    @register.api("GET", "/history")
+    async def api_history(self):
+        """趋势用：返回最近若干小时的采样点（小时数由 trend_hours 配置决定）。"""
+        span = int((self.plugin_cfg or {}).get("trend_hours") or DEFAULTS["trend_hours"])
+        points = await asyncio.to_thread(self._load_samples, span)
+        return {"status": "ok", "data": {"hours": span, "count": len(points), "points": points}}
+
+    @register.api("GET", "/report")
+    async def api_report(self):
+        """导出日报（Markdown）。"""
+        data = await self._collect_status()
+        markdown = await asyncio.to_thread(self._build_report, data, 1)
+        return {"status": "ok", "data": {"markdown": markdown, "days": 1}}
+
+    @register.api("GET", "/report/week")
+    async def api_report_week(self):
+        """导出周报（Markdown，7 天趋势）。"""
+        data = await self._collect_status()
+        markdown = await asyncio.to_thread(self._build_report, data, 7)
+        return {"status": "ok", "data": {"markdown": markdown, "days": 7}}
+
+    @register.api("GET", "/diag")
+    async def api_diag(self):
+        """诊断包：把排查要用的东西一次性打包，方便整份发给别人看。
+
+        只做只读采集，不提供「重连 / 清缓存」这类会改运行时状态的按钮——
+        插件拿不到稳定的适配器控制 API，猜着调用比不给更危险。
+        """
+        data = await self._collect_status()
+        alerts = self._evaluate_alerts(data)
+        errs = await asyncio.to_thread(self._errors_today, 120)
+        span = int((self.plugin_cfg or {}).get("trend_hours") or DEFAULTS["trend_hours"])
+        points = await asyncio.to_thread(self._load_samples, span)
+        tokens = dict(data.get("tokens") or {})
+        tokens.pop("by_model", None)   # 明细太长，包里只留汇总
+        return {
+            "status": "ok",
+            "data": {
+                "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "plugin_version": data.get("version"),
+                "settings": self._settings(),
+                "host": data.get("host"),
+                "adapters": data.get("adapters"),
+                "tokens": tokens,
+                "alerts": alerts,
+                "errors": {
+                    "date": errs.get("date"),
+                    "ok": errs.get("ok"),
+                    "msg": errs.get("msg"),
+                    "counts": errs.get("counts"),
+                    "groups": (errs.get("groups") or [])[:30],
+                    "by_hour": errs.get("by_hour"),
+                },
+                "trend": {
+                    "hours": span,
+                    "count": len(points),
+                    "points": [
+                        {"t": p.get("t"), "cpu": p.get("cpu"), "mem": p.get("mem"), "disk": p.get("disk")}
+                        for p in points[-1200:]
+                    ],
+                },
+            },
+        }
+
+    def _build_report(self, status: dict, days: int = 1) -> str:
+        """把当前快照 + 采样趋势拼成一份能直接贴进聊天的 Markdown。"""
+        span = 1 if int(days or 1) <= 1 else 7
+        label = "日报" if span == 1 else "周报"
+        out = []
+        out.append(f"# 550C 运行{label}")
+        out.append("")
+        out.append(f"生成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}")
+        out.append(f"插件版本：v{status.get('version') or '-'}")
+        out.append("")
+
+        host = status.get("host") or {}
+        if host.get("ok"):
+            up_h = int(int(host.get("boot_s") or 0) // 3600)
+            proc_h = int(int(host.get("proc_s") or 0) // 3600)
+            out.append("## 主机")
+            out.append("")
+            out.append("| 项目 | 数值 |")
+            out.append("| --- | --- |")
+            out.append(f"| CPU | {host.get('cpu')}%（{host.get('cores')} 核）|")
+            out.append(f"| 内存 | {host.get('mem')}%（{host.get('mem_used')} / {host.get('mem_total')} GB）|")
+            out.append(f"| 磁盘 | {host.get('disk')}% |")
+            out.append(f"| 系统已开机 | {up_h} 小时 |")
+            out.append(f"| 进程已运行 | {proc_h} 小时（{host.get('proc_mem')} MB）|")
+            out.append("")
+        else:
+            out.append(f"## 主机\n\n采集不可用：{host.get('msg') or '未知原因'}\n")
+
+        points = self._load_samples(span * 24)
+        if points:
+            out.append(f"## 趋势（最近 {span * 24} 小时，{len(points)} 个采样点）")
+            out.append("")
+            out.append("| 指标 | 最低 | 平均 | 最高 |")
+            out.append("| --- | --- | --- | --- |")
+            for key, name in (("cpu", "CPU %"), ("mem", "内存 %"), ("disk", "磁盘 %")):
+                vals = [
+                    float(p[key]) for p in points
+                    if isinstance(p.get(key), (int, float))
+                ]
+                if not vals:
+                    out.append(f"| {name} | - | - | - |")
+                    continue
+                out.append(
+                    f"| {name} | {min(vals):.1f} | {sum(vals) / len(vals):.1f} | {max(vals):.1f} |"
+                )
+            out.append("")
+        else:
+            out.append("## 趋势\n\n采样文件还没有数据，面板多开一会儿就会累积。\n")
+
+        tokens = status.get("tokens") or {}
+        if isinstance(tokens, dict) and tokens.get("ok"):
+            # 字段名对齐 _token_row 的真实返回（input/output，不是 prompt/completion）
+            out.append("## 用量（24 小时）")
+            out.append("")
+            out.append("| 项目 | 数值 |")
+            out.append("| --- | --- |")
+            out.append(f"| 调用次数 | {int(tokens.get('calls') or 0):,} |")
+            out.append(f"| 输入 token | {int(tokens.get('input') or 0):,} |")
+            out.append(f"| 输出 token | {int(tokens.get('output') or 0):,} |")
+            cached = int(tokens.get("cached") or 0)
+            if cached:
+                out.append(f"| 缓存命中 | {cached:,} |")
+            out.append(f"| 合计 | {int(tokens.get('total') or 0):,} |")
+            avg_ms = tokens.get("avg_ms")
+            if avg_ms:
+                out.append(f"| 平均响应 | {avg_ms} ms |")
+            cost = tokens.get("cost")
+            if cost is not None:
+                out.append(f"| 折算金额 | ¥{float(cost):.4f} |")
+            out.append("")
+
+            top = (tokens.get("by_model") or [])[:8]
+            if top:
+                out.append(f"### 按模型（前 {len(top)} 个）")
+                out.append("")
+                out.append("| 模型 | 调用 | 输入 | 输出 | 金额 |")
+                out.append("| --- | --- | --- | --- | --- |")
+                for row in top:
+                    money = row.get("cost")
+                    money_txt = f"¥{float(money):.4f}" if money is not None else "未配价"
+                    out.append(
+                        f"| {row.get('model')} | {row.get('calls')} | "
+                        f"{int(row.get('input') or 0):,} | {int(row.get('output') or 0):,} | {money_txt} |"
+                    )
+                out.append("")
+            unpriced = tokens.get("unknown_price") or []
+            if unpriced:
+                out.append(f"> 未配价模型：{', '.join(unpriced[:6])}（在 prices.json 里补上就能折算）")
+                out.append("")
+        else:
+            out.append("## 用量\n\n宿主这版没有用量统计接口，跳过。\n")
+
+        alerts = self._evaluate_alerts(status)
+        out.append("## 告警")
+        out.append("")
+        if alerts:
+            for item in alerts:
+                icon = "🔴" if item.get("lv") == "bad" else "🟡"
+                out.append(f"- {icon} **{item.get('title')}** —— {item.get('detail')}")
+        else:
+            out.append("- 无")
+        out.append("")
+
+        errs = self._errors_today(limit=50)
+        if errs.get("ok"):
+            groups = errs.get("groups") or []
+            out.append(f"## 报错（{errs.get('date')}，共 {sum(g.get('n', 0) for g in groups)} 条 / {len(groups)} 类）")
+            out.append("")
+            if groups:
+                out.append("| 次数 | 级别 | 来源 | 摘要 |")
+                out.append("| --- | --- | --- | --- |")
+                for g in groups[:10]:
+                    src = g.get("src") or "-"
+                    head = (g.get("head") or "").replace("|", "\\|")
+                    out.append(f"| {g.get('n')} | {g.get('lv')} | {src} | {head} |")
+            else:
+                out.append("- 今天没有 ERROR / WARNING")
+            out.append("")
+        else:
+            # 日志读不到时也要留一段：报告缺一块比写清楚「缺这块」更误导人
+            out.append("## 报错")
+            out.append("")
+            out.append(f"- 日志读不到：{errs.get('msg') or '未知原因'}")
+            out.append("")
+
+        return "\n".join(out)
 
     @register.api("GET", "/settings")
     async def api_get_settings(self):
@@ -762,3 +1229,74 @@ class Boot550CPlugin(BasePlugin):
     async def api_plugins(self):
         # 读市场缓存是磁盘活，丢线程里，别卡消息处理
         return {"status": "ok", "data": await asyncio.to_thread(self._plugin_rows)}
+
+    # ---- 插件自动更新：状态 / 立即检查 / 设置 ----
+    @register.api("GET", "/updater")
+    async def api_updater(self):
+        if self.updater is None:
+            return {"status": "error", "msg": "自动更新没挂起来，看日志里的 550C 记录"}
+        # 算待更新清单要读插件清单，丢线程里
+        return {"status": "ok", "data": await asyncio.to_thread(self.updater.status)}
+
+    @register.api("POST", "/updater/check")
+    async def api_updater_check(self, payload: dict = None):
+        if self.updater is None:
+            return {"status": "error", "msg": "自动更新没挂起来"}
+        if self.updater.status().get("busy"):
+            return {"status": "ok", "msg": "正在查，别急"}
+
+        async def _run():
+            result = await self.updater.check_now()
+            logger.info("[550C] 手动检查结束：%s", result)
+
+        # 下载可能要几十秒，别把面板的请求挂着；面板自己看 busy 和最近结果
+        asyncio.create_task(_run(), name="550c-manual-check")
+        return {"status": "ok", "msg": "已开始检查"}
+
+    @register.api("POST", "/updater/settings")
+    async def api_updater_settings(self, payload: dict = None):
+        if self.updater is None:
+            return {"status": "error", "msg": "自动更新没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        patch = {}
+        if "auto_update" in payload:
+            patch["auto_update"] = bool(payload["auto_update"])
+        for key, lo, hi in (("update_interval_hours", 1, 168), ("update_max_per_run", 1, 10)):
+            if key in payload:
+                try:
+                    patch[key] = max(lo, min(hi, int(payload[key])))
+                except (TypeError, ValueError):
+                    pass
+        if "update_exclude" in payload:
+            patch["update_exclude"] = str(payload["update_exclude"] or "").strip()
+        if not patch:
+            return {"status": "error", "msg": "没有可保存的字段"}
+
+        mgr = getattr(self.ctx, "plugin_mgr", None)
+        if mgr is None or not hasattr(mgr, "update_plugin_config"):
+            return {"status": "error", "msg": "当前环境不支持写入插件配置"}
+        try:
+            await mgr.update_plugin_config(PLUGIN_ID, patch)
+        except Exception as exc:
+            logger.error("[550C] 保存自动更新设置失败：%s", exc)
+            return {"status": "error", "msg": "保存失败：%s" % exc}
+
+        self.plugin_cfg = getattr(self, "plugin_cfg", None) or {}
+        self.plugin_cfg.update(patch)
+        # 间隔变了就重排下次，免得还是按旧周期等
+        if "update_interval_hours" in patch:
+            self.updater.reset_schedule()
+        logger.info("[550C] 自动更新设置已更新：%s", patch)
+        return {"status": "ok", "msg": "已记住", "data": await asyncio.to_thread(self.updater.status)}
+
+    @register.api("POST", "/updater/unblock")
+    async def api_updater_unblock(self, payload: dict = None):
+        if self.updater is None:
+            return {"status": "error", "msg": "自动更新没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        pid = str(payload.get("id") or "").strip()
+        if not pid:
+            return {"status": "error", "msg": "没说是哪个插件"}
+        self.updater.unblock(pid)
+        return {"status": "ok", "msg": "已放出来，下轮会重试一次",
+                "data": await asyncio.to_thread(self.updater.status)}
