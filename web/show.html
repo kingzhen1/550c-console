@@ -452,6 +452,32 @@ function startLink(){
 }
 function stopLink(){ if (linkTimer) clearInterval(linkTimer); }
 function startClock(){ setInterval(() => { const d = new Date(); $("#h-time").textContent = String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0"); }, 1000); }
+
+/* ===== 接面板送来的真实状态 =====
+   这块 HUD 原来 UPLINK / NODES / SESSION 全是硬编码的演示值
+   （SEVERED / 47-47 / 空串），面板把 /status 的结果 postMessage 过来后换成真的。
+   RSRP / SINR / BLER / KEY ROT 仍走 startLink 的随机演示，那些是指标氛围，
+   换成 CPU/内存反而会让单位对不上，所以不动。 */
+let realState = null;
+function paintReal(){
+  if (!realState) return;
+  const m = realState;
+  const up = $("#h-up"), nd = $("#h-nodes"), ss = $("#h-session");
+  if (up){
+    const allUp = m.total > 0 && m.down === 0 && m.live === m.total;
+    const partly = m.live > 0 && !allUp;
+    up.textContent = allUp ? "STABLE" : (partly ? "DEGRADED" : "SEVERED");
+    up.className = "v" + (allUp ? "" : " warn");
+  }
+  if (nd && m.total) nd.textContent = m.live + " / " + m.total;
+  if (ss && m.upH != null) ss.textContent = "BOOT " + m.upH + "h";
+}
+window.addEventListener("message", (ev) => {
+  const m = ev.data;
+  if (!m || m.kind !== "550c-status") return;
+  realState = m;
+  paintReal();
+});
 function startFps(){ setInterval(() => { $("#b-fps").textContent = (58 + Math.round(Math.random()*4)); }, 700); }
 
 /* ===== 无人机图标 ===== */
