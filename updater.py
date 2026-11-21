@@ -243,32 +243,94 @@ class AutoUpdater:
                 }
         return out, newest
 
-    def _store_url(self) -> str:
-        """问数据库要当前市场源；读不到就用官方源。"""
+    def _store_urls(self) -> list:
+        """市场源候选：当前源排第一，其余已登记的源跟着当备胎。"""
+        urls = []
         try:
             db = _data_root() / "data.db"
             con = sqlite3.connect(str(db), timeout=3)
             try:
-                row = con.execute(
-                    "select url from plugin_store_sources where is_current = 1 limit 1"
-                ).fetchone()
+                rows = con.execute(
+                    "select url from plugin_store_sources "
+                    "where url is not null and url <> '' "
+                    "order by is_current desc"
+                ).fetchall()
             finally:
                 con.close()
-            if row and row[0]:
-                return str(row[0])
+            for row in rows:
+                if row and row[0]:
+                    urls.append(str(row[0]))
         except Exception:
             pass
-        return FALLBACK_STORE_URL
+        urls.append(FALLBACK_STORE_URL)
+        # 去重保序
+        out, seen = [], set()
+        for u in urls:
+            u = u.strip()
+            if u and u not in seen:
+                seen.add(u)
+                out.append(u)
+        return out
 
     @staticmethod
-    def _http_json(url: str) -> dict:
+    def _http_json(url: str, timeout: float = 25.0) -> dict:
         import urllib.request
 
-        req = urllib.request.Request(url, headers={"User-Agent": "550C-autoupdate"})
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "550C-autoupdate",
+                "Accept": "application/json",
+                "Accept-Encoding": "identity",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read()
         data = json.loads(raw.decode("utf-8", "replace"))
         return data if isinstance(data, dict) else {}
+
+    def _fetch_market_online(self) -> tuple:
+        """挨个源试，每个源最多两次。返回 (插件表, 说明, 是否成功)。"""
+        last_err = ""
+        sources = self._store_urls()
+        for url in sources:
+            for attempt in (1, 2):
+                try:
+                    data = self._http_json(url, timeout=25.0 if attempt == 1 else 35.0)
+                except Exception as exc:
+                    last_err = "%s: %s" % (type(exc).__name__, exc)
+                    logger.warning("[550C] 市场源第 %d 次失败 %s（%s）", attempt, url, last_err)
+                    if attempt == 1:
+                        time.sleep(1.5)
+                    continue
+                got = self._parse_market(data)
+                if got:
+                    return got, "在线拉取 %s（%s）" % (_fmt_ts(time.time()), url.split("/")[2]), True
+                last_err = "返回内容解析不出插件"
+                break
+        return {}, last_err or "所有源都试过了", False
+
+    @staticmethod
+    def _parse_market(data) -> dict:
+        items = data.get("plugins") if isinstance(data, dict) else None
+        if isinstance(items, dict):
+            pairs = list(items.items())
+        elif isinstance(items, list):
+            pairs = [(i.get("plugin_id"), i) for i in items if isinstance(i, dict)]
+        else:
+            pairs = []
+        got = {}
+        for pid, item in pairs:
+            if not pid or not isinstance(item, dict):
+                continue
+            ver = str(item.get("version") or "").strip()
+            if not ver:
+                continue
+            got[str(pid)] = {
+                "version": ver,
+                "repo": str(item.get("repo") or item.get("repository") or ""),
+            }
+        return got
 
     async def market(self, force: bool = False) -> dict:
         now = time.time()
@@ -281,34 +343,17 @@ class AutoUpdater:
         note = "本地缓存 %s" % _fmt_ts(disk_at)
 
         if force or not fresh:
-            try:
-                data = await asyncio.to_thread(self._http_json, self._store_url())
-                items = data.get("plugins") if isinstance(data, dict) else None
-                pairs = []
-                if isinstance(items, dict):
-                    pairs = list(items.items())
-                elif isinstance(items, list):
-                    pairs = [(i.get("plugin_id"), i) for i in items if isinstance(i, dict)]
-                got = {}
-                for pid, item in pairs:
-                    if not pid or not isinstance(item, dict):
-                        continue
-                    ver = str(item.get("version") or "").strip()
-                    if not ver:
-                        continue
-                    got[str(pid)] = {
-                        "version": ver,
-                        "repo": str(item.get("repo") or item.get("repository") or ""),
-                    }
-                if got:
-                    merged = got
-                    note = "在线拉取 %s" % _fmt_ts(now)
-                elif not merged:
-                    note = "市场拉不到，且本地没有缓存"
-            except Exception as exc:
+            got, detail, ok = await asyncio.to_thread(self._fetch_market_online)
+            if ok and got:
+                merged = got
+                note = detail
+            elif merged:
                 # 网络抖一下不等于「没有新版」：继续用旧缓存判断
-                note = "在线拉取失败（%s），沿用 %s" % (type(exc).__name__, _fmt_ts(disk_at))
-                logger.warning("[550C] 拉市场失败：%s", exc)
+                note = "在线拉取失败（%s），沿用 %s" % (detail, _fmt_ts(disk_at))
+                logger.warning("[550C] 拉市场失败：%s", detail)
+            else:
+                note = "在线拉取失败（%s），且本地没有缓存" % detail
+                logger.warning("[550C] 拉市场失败：%s", detail)
 
         self._market, self._market_at, self._market_note = merged, now, note
         return merged

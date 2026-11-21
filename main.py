@@ -15,8 +15,10 @@ from pathlib import Path
 from core.plugin import BasePlugin, PluginContext, register, PageMenu, PluginPage, logger
 
 try:
+    from .fwupdater import FrameworkUpdater
     from .updater import AutoUpdater
 except ImportError:  # 离线自测时本文件不是包，退回平级导入
+    from fwupdater import FrameworkUpdater
     from updater import AutoUpdater
 
 PLUGIN_ID = "kira-ai-plugin-550c-boot"
@@ -37,6 +39,8 @@ DEFAULTS = {
     "alert_webhook": "",
     # 趋势图保留小时数
     "trend_hours": 24,
+    # 动画收尾那句 welcome back, master
+    "voice_welcome": True,
 }
 
 # 报错归并时抹掉的噪声：时间戳、端口、计数、十六进制地址这类每次都变的部分。
@@ -224,6 +228,8 @@ class Boot550CPlugin(BasePlugin):
         self._alert_sent: dict = {}
         # 自动更新器：initialize 里挂上，terminate 里摘掉
         self.updater = None
+        # 框架（本体）更新器，另一条独立循环
+        self.fwupdater = None
         self._warm_cpu()
 
     @staticmethod
@@ -798,6 +804,8 @@ class Boot550CPlugin(BasePlugin):
             # 自动更新那块要读插件清单，也丢线程里
             "updater": (await asyncio.to_thread(self.updater.status)
                         if getattr(self, "updater", None) is not None else None),
+            "framework_updater": (await asyncio.to_thread(self.fwupdater.status)
+                                  if getattr(self, "fwupdater", None) is not None else None),
         }
 
     def _version(self) -> str:
@@ -826,7 +834,21 @@ class Boot550CPlugin(BasePlugin):
             logger.error("[550C] 自动更新没挂起来：%s", exc)
             self.updater = None
 
+        # 框架更新：另一条循环，管本体
+        try:
+            self.fwupdater = FrameworkUpdater(self)
+            await self.fwupdater.start()
+        except Exception as exc:
+            logger.error("[550C] 框架更新没挂起来：%s", exc)
+            self.fwupdater = None
+
     async def terminate(self):
+        if self.fwupdater is not None:
+            try:
+                await self.fwupdater.stop()
+            except Exception as exc:
+                logger.warning("[550C] 框架更新收尾失败：%s", exc)
+            self.fwupdater = None
         if self.updater is not None:
             try:
                 await self.updater.stop()
@@ -849,6 +871,7 @@ class Boot550CPlugin(BasePlugin):
             "auto": bool(cfg.get("auto_play", DEFAULTS["auto_play"])),
             "loop": bool(cfg.get("loop", DEFAULTS["loop"])),
             "duration": int(cfg.get("duration_hint") or DEFAULTS["duration_hint"]),
+            "voice": bool(cfg.get("voice_welcome", DEFAULTS["voice_welcome"])),
         }
 
     @register.page(
@@ -1085,7 +1108,7 @@ class Boot550CPlugin(BasePlugin):
             patch["mode"] = str(payload["mode"]).lower()
         if str(payload.get("scheme", "")).lower() in SCHEME_OPTIONS:
             patch["scheme"] = str(payload["scheme"]).lower()
-        for key in ("auto_play", "loop"):
+        for key in ("auto_play", "loop", "voice_welcome"):
             if key in payload:
                 patch[key] = bool(payload[key])
         if "duration_hint" in payload:
@@ -1183,7 +1206,7 @@ class Boot550CPlugin(BasePlugin):
             ver = str(info.version or "") or "-"
             status = str(getattr(info, "status", "") or "")
             s = store.get(pid)
-            light, note, latest = "grey", "市场未收录", ""
+            light, note, latest, newer = "grey", "市场未收录", "", False
 
             if status == "error" or pid in errors:
                 light, note = "red", "加载报错"
@@ -1209,11 +1232,13 @@ class Boot550CPlugin(BasePlugin):
                 light = "grey" if status == "ready" else "amber"
                 note = "运行中 · 市场未收录" if status == "ready" else (status or "未知")
 
+            # 箭头只在市场真的更新时才给。本地比市场新（自己改过版本号、市场还没跟上）
+            # 也照抄一个箭头出去，看着像要给自己降级
             rows.append({
                 "id": pid,
                 "name": str(getattr(info, "display_name", "") or pid),
                 "version": ver,
-                "latest": latest,
+                "latest": latest if newer else "",
                 "light": light,
                 "note": note,
                 "enabled": bool(mgr.is_plugin_enabled(pid)) if hasattr(mgr, "is_plugin_enabled") else True,
@@ -1288,6 +1313,62 @@ class Boot550CPlugin(BasePlugin):
             self.updater.reset_schedule()
         logger.info("[550C] 自动更新设置已更新：%s", patch)
         return {"status": "ok", "msg": "已记住", "data": await asyncio.to_thread(self.updater.status)}
+
+    # ---- 框架（本体）自动更新 ----
+    @register.api("GET", "/framework")
+    async def api_framework(self):
+        if self.fwupdater is None:
+            return {"status": "error", "msg": "框架更新没挂起来，看日志里的 550C 记录"}
+        return {"status": "ok", "data": await asyncio.to_thread(self.fwupdater.status)}
+
+    @register.api("POST", "/framework/check")
+    async def api_framework_check(self, payload: dict = None):
+        if self.fwupdater is None:
+            return {"status": "error", "msg": "框架更新没挂起来"}
+        if self.fwupdater.status().get("busy"):
+            return {"status": "ok", "msg": "正在查，别急"}
+
+        async def _run():
+            result = await self.fwupdater.check_now()
+            logger.info("[550C] 框架手动检查结束：%s", result)
+
+        asyncio.create_task(_run(), name="550c-fw-check")
+        return {"status": "ok", "msg": "已开始检查框架版本"}
+
+    @register.api("POST", "/framework/settings")
+    async def api_framework_settings(self, payload: dict = None):
+        if self.fwupdater is None:
+            return {"status": "error", "msg": "框架更新没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        patch = {}
+        if "fw_auto_update" in payload:
+            patch["fw_auto_update"] = bool(payload["fw_auto_update"])
+        if "fw_allow_prerelease" in payload:
+            patch["fw_allow_prerelease"] = bool(payload["fw_allow_prerelease"])
+        if "fw_update_interval_hours" in payload:
+            try:
+                patch["fw_update_interval_hours"] = max(1, min(168, int(payload["fw_update_interval_hours"])))
+            except (TypeError, ValueError):
+                pass
+        if not patch:
+            return {"status": "error", "msg": "没有可保存的字段"}
+
+        mgr = getattr(self.ctx, "plugin_mgr", None)
+        if mgr is None or not hasattr(mgr, "update_plugin_config"):
+            return {"status": "error", "msg": "当前环境不支持写入插件配置"}
+        try:
+            await mgr.update_plugin_config(PLUGIN_ID, patch)
+        except Exception as exc:
+            logger.error("[550C] 保存框架更新设置失败：%s", exc)
+            return {"status": "error", "msg": "保存失败：%s" % exc}
+
+        self.plugin_cfg = getattr(self, "plugin_cfg", None) or {}
+        self.plugin_cfg.update(patch)
+        if "fw_update_interval_hours" in patch:
+            self.fwupdater.reset_schedule()
+        logger.info("[550C] 框架更新设置已更新：%s", patch)
+        return {"status": "ok", "msg": "已记住",
+                "data": await asyncio.to_thread(self.fwupdater.status)}
 
     @register.api("POST", "/updater/unblock")
     async def api_updater_unblock(self, payload: dict = None):

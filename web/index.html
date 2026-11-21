@@ -272,6 +272,23 @@
   .st-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;padding:2px 0 16px}
   .st-sec{display:flex;align-items:center;gap:10px;color:var(--fg-3);font-size:10.5px;
     letter-spacing:.22em;padding:14px 16px 8px} /*__css1 */
+  /* 折叠键：光一个小三角手机上根本找不着，直接做成带字的药丸：
+     [▶ 展开]，展开后变 [▼ 收起]。整行标题也能点。 */
+  .st-sec .fold{all:unset;box-sizing:border-box;cursor:pointer;flex:0 0 auto;
+    display:inline-flex;align-items:center;gap:5px;height:21px;padding:0 9px 0 7px;
+    border:1px solid rgba(232,160,32,.5);border-radius:10px;background:rgba(232,160,32,.12);
+    transition:background .18s ease,border-color .18s ease}
+  .st-sec .fold:hover{background:rgba(232,160,32,.24);border-color:rgba(232,160,32,.85)}
+  .st-sec .fold.open{background:rgba(232,160,32,.2);border-color:var(--amber)}
+  .st-sec .fold b{display:block;width:0;height:0;font-size:0;line-height:0;
+    border-left:6px solid var(--amber);border-top:4.5px solid transparent;border-bottom:4.5px solid transparent;
+    transform:translateX(1px);transition:transform .2s ease}
+  .st-sec .fold.open b{transform:rotate(90deg)}
+  .st-sec .fold i{font-style:normal;font-size:10.5px;letter-spacing:.04em;line-height:1;
+    color:var(--amber);font-weight:500}
+  /* 整行都能点，标题本身就是开关 */
+  .st-sec.foldable{cursor:pointer;user-select:none;border-radius:6px;padding-right:16px}
+  .st-sec.foldable:hover{background:rgba(255,255,255,.05)}
   .st-sec .seg{border-radius:6px;letter-spacing:0}
   .st-sec .seg button{padding:3px 10px;font-size:10.5px;letter-spacing:.04em}
   .mrow .msub{flex:0 0 auto;font-size:9.5px;color:var(--fg-3);font-variant-numeric:tabular-nums}
@@ -304,6 +321,8 @@
   .led.warn{background:var(--amber);box-shadow:0 0 7px var(--amber);animation:blink 1.1s ease-in-out infinite}
   .led.bad{background:#e05030;box-shadow:0 0 8px #e05030;animation:pulseBad .9s ease-in-out infinite}
   .st-empty{color:var(--fg-3);font-size:11.5px;padding:2px 16px 4px}
+  /* 收起态：默认只露标题和操作按钮，点箭头才铺开卡片 */
+  .st-grid.collapsed{display:none}
   /* 插件点灯：卡片封顶，名单在卡片里自己滚，整段不再无限拉长去撞浮层 */
   .st-grid.wrap{grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content}
   .st-grid.wrap .card{min-width:0;height:auto;overflow:hidden}
@@ -346,6 +365,28 @@
   .alert-row .d{color:var(--fg-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @keyframes alert-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 
+  /* ==== 欢迎语浮层 ====
+     动画收尾、状态面板还没弹出来那一下，正中浮一行字，轻轻散开就走。 */
+  .welcome{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;opacity:0;z-index:60;transition:opacity .5s ease}
+  .welcome.show{opacity:1}
+  .welcome{padding:0 4vw}
+  .welcome span{display:block;text-align:center;
+    /* 手机上按屏宽走，桌面上封顶；原来 19px 在大屏上就是一句小字 */
+    font-size:clamp(30px, 7.6vw, 76px);font-weight:600;line-height:1.24;
+    letter-spacing:.14em;text-transform:lowercase;word-break:keep-all;
+    color:#f4f4f7;max-width:94vw;padding:.2em 0 .24em;border-radius:3px;
+    text-shadow:0 0 26px rgba(232,160,32,.5),0 0 6px rgba(255,255,255,.6),0 2px 10px rgba(0,0,0,.65);
+    animation:welcomeIn 1.1s cubic-bezier(.16,.84,.28,1) both}
+  .welcome.show span{animation:welcomeIn 1.1s cubic-bezier(.16,.84,.28,1) both}
+  @keyframes welcomeIn{
+    from{opacity:0;letter-spacing:.5em;filter:blur(9px)}
+    to{opacity:1;letter-spacing:.14em;filter:blur(0)}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .welcome span,.welcome.show span{animation:none}
+  }
+
   /* ==== 趋势折线 ==== */
   .trend-wrap{position:relative;padding:6px 0 2px}
   #trend{width:100%;height:132px;display:block}
@@ -355,6 +396,14 @@
   .lg-mem{background:var(--cyan)}
   .lg-cpu{background:var(--amber)}
   .trend-hint{margin-left:auto;color:var(--fg-3)}
+  .trend-tip{position:absolute;display:none;pointer-events:none;z-index:6;padding:6px 9px;border-radius:8px;
+    background:rgba(16,16,20,.96);border:1px solid var(--line-2);box-shadow:0 8px 22px rgba(0,0,0,.5);
+    font-size:11px;line-height:1.6;color:var(--fg);white-space:nowrap;transform:translate(-50%,-100%)}
+  .trend-tip .tt-time{color:var(--fg-3);font-size:10px;letter-spacing:.04em;margin-bottom:2px}
+  .trend-tip .tt-row{display:flex;align-items:center;gap:6px}
+  .trend-tip .tt-row i{width:7px;height:2px;border-radius:2px;display:inline-block}
+  .trend-tip .tt-row em{font-style:normal;color:var(--fg-2);margin-left:auto;padding-left:10px}
+  #trend{cursor:crosshair}
   .trend-legend .lg{cursor:pointer;-webkit-user-select:none;user-select:none;padding:1px 5px;border-radius:5px;
     transition:color .18s ease,background .18s ease,opacity .18s ease}
   .trend-legend .lg:hover{background:rgba(255,255,255,.06);color:var(--fg-2)}
@@ -394,6 +443,7 @@
   </div>
   <label class="toggle"><input type="checkbox" id="auto">自动播放</label>
   <label class="toggle"><input type="checkbox" id="loop">循环</label>
+  <label class="toggle" title="动画结束时播一句欢迎语（不显示文字）"><input type="checkbox" id="voice">欢迎语</label>
   <div class="group">
     <label>时长</label>
     <input type="range" id="dur" min="6" max="30" step="1">
@@ -434,17 +484,28 @@
       <div class="st-grid" id="stModels"></div>
       <div class="st-sec">PLUGINS · 插件点灯</div>
       <div class="st-grid wrap" id="stPlugins"></div>
-      <div class="st-sec">UPDATE · 插件自动更新
+      <div class="st-sec foldable" data-foldrow="stUpdater">
+        <button class="fold" type="button" data-fold="stUpdater" aria-expanded="false" title="展开这一块"><b></b><i>展开</i></button>
+        <span>UPDATE · 插件自动更新</span>
         <span class="seg" id="stUpSeg">
           <button data-v="now" title="马上按市场清单检查一次，并把该换的换掉">立即检查</button>
         </span>
       </div>
-      <div class="st-grid wrap" id="stUpdater"></div>
+      <div class="st-grid wrap collapsed" id="stUpdater"></div>
+      <div class="st-sec foldable" data-foldrow="stFw">
+        <button class="fold" type="button" data-fold="stFw" aria-expanded="false" title="展开这一块"><b></b><i>展开</i></button>
+        <span>FRAMEWORK · 框架更新</span>
+        <span class="seg" id="stFwSeg">
+          <button data-v="now" title="去 GitHub 查 KiraAI 最新 release；查到新版会直接换掉并重启天网">检查并更新</button>
+        </span>
+      </div>
+      <div class="st-grid wrap collapsed" id="stFw"></div>
       <div class="st-sec">HOST · 宿主负载</div>
       <div class="st-grid" id="stHost"></div>
       <div class="st-sec">TREND · 趋势（<span id="trRange">24</span> 小时）</div>
       <div class="trend-wrap">
         <canvas id="trend"></canvas>
+        <div class="trend-tip" id="trTip"></div>
         <div class="trend-legend" id="trLegend">
           <span class="lg" data-k="disk" title="只看磁盘，纵轴按实际范围自适应"><i class="lg-disk"></i>磁盘</span>
           <span class="lg" data-k="mem" title="只看内存，纵轴按实际范围自适应"><i class="lg-mem"></i>内存</span>
@@ -525,7 +586,7 @@
   var idMatch = location.pathname.match(/^(.*)\/page\/plugin\/[^/]+/);
   var API = (idMatch ? idMatch[1] : "") + "/api/plugin/kira-ai-plugin-550c-boot";
   var stage = document.getElementById("stage");
-  var state = { mode: "full", scheme: "amber", auto: true, loop: false, duration: 14 };
+  var state = { mode: "full", scheme: "amber", auto: true, loop: false, duration: 14, voice: true };
   var running = false, timer = null;
 
   function toast(msg, isErr) {
@@ -647,6 +708,8 @@
     });
     document.getElementById("auto").checked = state.auto;
     document.getElementById("loop").checked = state.loop;
+    var vb = document.getElementById("voice");
+    if (vb) vb.checked = !!state.voice;
     document.getElementById("dur").value = state.duration;
     document.getElementById("durTxt").textContent = state.duration + "s";
     document.getElementById("fMode").textContent = "mode " + state.mode;
@@ -667,6 +730,138 @@
     document.getElementById("fLink").textContent = "link loading…";
     stage.src = src(null, forceAuto);
     if (!keepRunning) setState(state.mode === "off" ? "黑屏" : "待机");
+  }
+
+  /* ===== 欢迎语 =====
+     动画收尾那一刻播一句欢迎语，屏幕上不再出那行大字（哥哥让删的）。
+     有 web/audio/welcome-master.mp3 就先播它（原声），没有就退回合成女声。
+     浏览器不许没交互就出声，所以这里记一个「被拦过」的标记，
+     等哥哥第一次点页面时补放一次，不会白白吞掉。 */
+  // 固定英文：原来按 navigator.language 挑，中文手机永远只会听到中文那版，
+  // 想要中文得自己在地址栏加 ?voice=zh，别让系统语言替哥哥决定。
+  var WELCOME_LANG = (new URLSearchParams(location.search).get("voice") || "").toLowerCase();
+  var WELCOME_BASE = WELCOME_LANG === "zh" ? "audio/welcome-master-zh.mp3"
+                                           : "audio/welcome-master.mp3";
+  // 带个版本戳：换了音频文件，浏览器也别再拿旧缓存糊弄
+  var WELCOME_SRC = WELCOME_BASE + "?v=6";
+  var welcomeFileOk = null;        // null=还没探过 / true=有原声 / false=没有
+  var welcomeEl = null, welcomeTimer = null;
+  var welcomeAudio = null;
+  var audioUnlocked = false, welcomeMuted = false, welcomePending = false;
+
+  function welcomeFlash() {
+    if (!welcomeEl) welcomeEl = document.getElementById("welcome");
+    if (!welcomeEl) return;
+    welcomeEl.classList.remove("show");
+    // 强制回流，动画才能从头发一次
+    void welcomeEl.offsetWidth;
+    welcomeEl.classList.add("show");
+    if (welcomeTimer) clearTimeout(welcomeTimer);
+    welcomeTimer = setTimeout(function () {
+      welcomeEl.classList.remove("show");
+      welcomeTimer = null;
+    }, 2600);
+  }
+
+  function pickFemaleVoice() {
+    if (!window.speechSynthesis) return null;
+    var list = window.speechSynthesis.getVoices() || [];
+    var zh = /zh|cmn|Chinese/i;
+    var female = /female|女|Xiaoxiao|Xiaoyi|Xiaohan|Yaoyao|Tingting|Huihui|Meijia|Sinji|Hanhan|Yunxi|Yunyang/i;
+    var by = function (re) {
+      for (var i = 0; i < list.length; i++) {
+        if (re.test(list[i].name + " " + list[i].lang)) return list[i];
+      }
+      return null;
+    };
+    // 优先中文女声，其次任意女声，最后任意中文，再不行就用系统默认
+    return by(new RegExp(zh.source + ".*" + female.source, "i")) ||
+           by(female) || by(zh) || list[0] || null;
+  }
+
+  function speakWelcome() {
+    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== "function") return false;
+    try {
+      window.speechSynthesis.cancel();
+      var u = new window.SpeechSynthesisUtterance("Welcome back, master.");
+      var v = pickFemaleVoice();
+      if (v) { u.voice = v; u.lang = v.lang || "en-US"; }
+      else u.lang = "en-US";
+      u.rate = 0.94; u.pitch = 1.28; u.volume = 1;
+      u.onerror = function () { fallbackChime(); };
+      // 有些内核 speak 了也不出声，给个兜底提示音，别让这一幕完全静音
+      window.speechSynthesis.speak(u);
+      setTimeout(function () {
+        var sp = window.speechSynthesis;
+        if (sp && (sp.speaking || sp.pending)) return;
+        fallbackChime();
+      }, 900);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  var chimeAudio = null;
+  function fallbackChime() {
+    try {
+      if (!chimeAudio) { chimeAudio = new Audio("audio/blip-soft.mp3"); chimeAudio.volume = 1; }
+      chimeAudio.currentTime = 0;
+      chimeAudio.play().catch(function () {});
+    } catch (e) {}
+  }
+
+  function playWelcomeAudio() {
+    if (!welcomeAudio) {
+      welcomeAudio = new Audio(WELCOME_SRC);
+      welcomeAudio.preload = "auto";
+      welcomeAudio.volume = 1;      // 原来 0.9 在手机上又轻又闷，直接给满
+      welcomeAudio.setAttribute("playsinline", "");
+    }
+    var p = welcomeAudio.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(function (err) {
+        var name = (err && err.name) || "";
+        if (name === "NotAllowedError") { welcomeMuted = true; welcomePending = true; }
+        else { welcomeFileOk = false; speakWelcome(); }   // 404/解码失败：换合成声
+      });
+      p.then(function () { welcomeMuted = false; }, function () {});
+    }
+    return true;
+  }
+
+  // 先 HEAD 探一下有没有原声文件，探不到就走合成，免得每次都等一次失败
+  function probeWelcomeFile() {
+    if (welcomeFileOk !== null) return;
+    fetch(WELCOME_SRC, { method: "HEAD", credentials: "include" })
+      .then(function (r) {
+        welcomeFileOk = !!(r && r.ok && (r.headers.get("content-type") || "").indexOf("text/html") < 0);
+      })
+      .catch(function () { welcomeFileOk = false; });
+  }
+
+  function sayWelcome() {
+    if (!state.voice) return;
+    welcomeFlash();
+    if (welcomeFileOk === false) { speakWelcome(); return; }
+    if (welcomeFileOk === true) { playWelcomeAudio(); return; }
+    probeWelcomeFile();
+    // 还没探完就先按原声试，失败会自动落到合成声
+    playWelcomeAudio();
+  }
+
+  // 浏览器第一次被允许出声之后，把被拦下的那句补说一次
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    if (!welcomePending) return;
+    welcomePending = false;
+    if (!state.voice) return;
+    if (welcomeFileOk === true) playWelcomeAudio(); else speakWelcome();
+  }
+  ["pointerdown", "keydown", "touchstart"].forEach(function (ev) {
+    window.addEventListener(ev, unlockAudio, { once: false, passive: true });
+  });
+  if (window.speechSynthesis && typeof window.speechSynthesis.onvoiceschanged !== "undefined") {
+    window.speechSynthesis.onvoiceschanged = function () { pickFemaleVoice(); };
   }
 
   function replay() {
@@ -708,6 +903,7 @@
       running = false;
       document.getElementById("fLink").textContent = "link idle";
       setState("收工", "on");
+      sayWelcome();                     // 先出声、先浮字，再把状态面板接上来
       if (state.loop) setTimeout(replay, 700);
       else setTimeout(function () {        // 播完一块儿接上：实时状态 + 当日报错，而不是干晾在最后一帧
         openStatus();
@@ -738,6 +934,13 @@
     sync();
     load(true);
   });
+  var voiceBox = document.getElementById("voice");
+  if (voiceBox) voiceBox.addEventListener("change", function (e) {
+    state.voice = e.target.checked;
+    sync();
+    if (state.voice) { audioUnlocked = true; sayWelcome(); }   // 开的时候让哥哥当场听一遍
+    else if (window.speechSynthesis) window.speechSynthesis.cancel();
+  });
   document.getElementById("loop").addEventListener("change", function (e) {
     state.loop = e.target.checked;
     sync();
@@ -761,7 +964,8 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: state.mode, scheme: state.scheme,
-        auto_play: state.auto, loop: state.loop, duration_hint: state.duration
+        auto_play: state.auto, loop: state.loop, duration_hint: state.duration,
+        voice_welcome: state.voice
       })
     }).then(function (r) { return r.json(); }).then(function (res) {
       toast(res.status === "ok" ? (res.msg || "已保存") : (res.msg || "保存失败"), res.status !== "ok");
@@ -1076,7 +1280,7 @@
       var line = el("div", "plrow" + (r.enabled === false ? " off" : ""));
       line.appendChild(el("span", "led " + (PL_LIGHT[r.light] || "")));
       var nm = el("span", "pn", r.name);
-      var ver = "v" + r.version + (r.latest ? " → " + r.latest : "");
+      var ver = vtag(r.version) + (r.latest ? " → " + vtag(r.latest) : "");
       nm.appendChild(el("em", null, ver));
       line.appendChild(nm);
       line.appendChild(el("span", "pv " + (PL_LIGHT[r.light] || ""),
@@ -1122,7 +1326,7 @@
         var line = el("div", "plrow");
         line.appendChild(el("span", "led blue"));
         var nm = el("span", "pn", r.name);
-        nm.appendChild(el("em", null, "v" + r.from + " → " + r.to));
+        nm.appendChild(el("em", null, vtag(r.from) + " → " + vtag(r.to)));
         line.appendChild(nm);
         line.appendChild(el("span", "pv blue", "等更新"));
         line.title = r.id;
@@ -1157,7 +1361,7 @@
         var line = el("div", "plrow" + (h.ok ? "" : " off"));
         line.appendChild(el("span", "led " + (h.ok ? "ok" : "bad")));
         var nm = el("span", "pn", h.name || h.id);
-        nm.appendChild(el("em", null, "v" + h.from + " → " + h.to));
+        nm.appendChild(el("em", null, vtag(h.from) + " → " + vtag(h.to)));
         line.appendChild(nm);
         line.appendChild(el("span", "pv " + (h.ok ? "ok" : "bad"),
           h.ok ? "已换" : "失败"));
@@ -1166,6 +1370,172 @@
       });
       body.appendChild(hl);
     }
+  }
+
+  /* ===== 折叠：插件更新 / 框架更新两块默认收起 =====
+     这两块铺开后很长，一展开就会顶到报错框上面去，
+     所以展开的时候顺手把报错框收掉，免得两层浮层压在一起看不清。 */
+  function setFold(target, open) {
+    var grid = document.getElementById(target);
+    var btn = document.querySelector('.st-sec .fold[data-fold="' + target + '"]');
+    if (grid) grid.classList.toggle("collapsed", !open);
+    if (btn) {
+      btn.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.title = open ? "收起这一块" : "展开这一块";
+      var lb = btn.querySelector("i");
+      if (lb) lb.textContent = open ? "收起" : "展开";   // 字跟着变，别只靠三角转
+    }
+    if (open) {
+      var eb = document.getElementById("errs");
+      if (eb && eb.classList.contains("show")) closeErrors();
+    }
+  }
+
+  function toggleFold(t) {
+    var g = document.getElementById(t);
+    setFold(t, !!g && g.classList.contains("collapsed"));
+  }
+
+  function bindFolds() {
+    Array.prototype.forEach.call(document.querySelectorAll(".st-sec .fold[data-fold]"), function (btn) {
+      if (btn._foldBound) return;
+      btn._foldBound = true;
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        toggleFold(btn.getAttribute("data-fold"));
+      });
+    });
+    // 整行可点：省得盯着那个小三角找
+    Array.prototype.forEach.call(document.querySelectorAll(".st-sec[data-foldrow]"), function (row) {
+      if (row._foldRowBound) return;
+      row._foldRowBound = true;
+      row.addEventListener("click", function (e) {
+        if (e.target.closest(".seg")) return;   // 立即检查 / 检查并更新 照旧只管自己
+        toggleFold(row.getAttribute("data-foldrow"));
+      });
+    });
+  }
+
+  /* ===== 框架更新卡 =====
+     和插件那张分开：换框架是整个天网重启，按钮和文案都要写清代价。 */
+  function renderFramework(fw) {
+    var box = document.getElementById("stFw");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!fw) {
+      box.appendChild(el("div", "st-empty", "框架更新没挂起来，看日志里的 550C 记录"));
+      return;
+    }
+    var busy = !!fw.busy;
+    var state = fw.last_error ? "warn" : (fw.enabled ? (fw.has_new ? "blue" : "ok") : "");
+    var badge = fw.enabled ? (busy ? "处理中" : (fw.has_new ? "有新版本" : "开启")) : "关闭";
+    var body = card(box, "框架 · 当前 " + vtag(fw.current), badge, state === "blue" ? "" : state, state);
+
+    kv(body, "最新 release", fw.latest && fw.latest !== "-"
+      ? fw.latest + (fw.has_new ? "（比本地新）" : "（已是最新）")
+      : "-");
+    kv(body, "自动更新", fw.enabled
+      ? "开启 · 每 " + fw.interval_h + " 小时"
+      : "已关闭（只查看，不动文件）");
+    kv(body, "预发布版", fw.prerelease ? "允许（含 beta）" : "只认正式版");
+    kv(body, "上次检查", fw.last_check_at || "-");
+    kv(body, "下次检查", fw.enabled ? (fw.next_check_at || "-") : "已关闭");
+    kv(body, "上次结果", fw.last_result || "-");
+    kv(body, "来源", fw.market_note || "-");
+    if (fw.last_backup) kv(body, "最近备份", fw.last_backup);
+
+    if (fw.last_error) {
+      var er = el("div", "mnote", "上次出错：" + fw.last_error);
+      er.style.color = "#e05030";
+      body.appendChild(er);
+    }
+
+    // 两个开关直接点，改完立刻写回插件配置
+    var ops = el("div", "mnote");
+    var tg = el("span", "pv " + (fw.enabled ? "ok" : ""), fw.enabled ? "点我关掉自动更新" : "点我打开自动更新");
+    tg.style.cursor = "pointer";
+    tg.title = "换框架会重启整个天网，默认关着";
+    tg.addEventListener("click", function () {
+      saveFramework({ fw_auto_update: !fw.enabled });
+    });
+    ops.appendChild(tg);
+    ops.appendChild(document.createTextNode("  "));
+    var pre = el("span", "pv", fw.prerelease ? "改成只认正式版" : "允许预发布版");
+    pre.style.cursor = "pointer";
+    pre.addEventListener("click", function () {
+      saveFramework({ fw_allow_prerelease: !fw.prerelease });
+    });
+    ops.appendChild(pre);
+    body.appendChild(ops);
+
+    var rel = fw.releases || [];
+    if (rel.length) {
+      var rl = el("div", "mlist");
+      rel.slice(0, 4).forEach(function (r) {
+        var line = el("div", "plrow" + (r.tag === fw.latest ? "" : " off"));
+        line.appendChild(el("span", "led " + (r.tag === fw.latest ? "blue" : "")));
+        var nm = el("span", "pn", r.tag);
+        if (r.published_at) nm.appendChild(el("em", null, String(r.published_at).slice(0, 10)));
+        line.appendChild(nm);
+        if (r.prerelease) line.appendChild(el("span", "pv", "预发布"));
+        rl.appendChild(line);
+      });
+      body.appendChild(rl);
+    }
+
+    var his = fw.history || [];
+    if (his.length) {
+      var hl = el("div", "mlist");
+      his.slice(0, 4).forEach(function (h) {
+        var line = el("div", "plrow" + (h.ok ? "" : " off"));
+        line.appendChild(el("span", "led " + (h.ok ? "ok" : "bad")));
+        var nm = el("span", "pn " + (h.ok ? "" : ""), h.tag || "");
+        line.appendChild(nm);
+        line.appendChild(el("span", "pv " + (h.ok ? "ok" : "bad"), h.ok ? "已换并重启" : "失败已回滚"));
+        line.title = (h.error || "") + (h.manual ? "（手动触发）" : "");
+        hl.appendChild(line);
+      });
+      body.appendChild(hl);
+    }
+  }
+
+  // 版本号统一走这里：带不带 v 都只留一个，省得面板上冒出 vv3.1.2
+  function vtag(v) {
+    var t = String(v == null ? "" : v).trim().replace(/^[vV]+/, "");
+    return t ? "v" + t : "-";
+  }
+
+  function saveFramework(patch) {
+    fetch(API + "/framework/settings", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res && res.status === "ok") {
+        toast("已记住");
+        if (res.data) renderFramework(res.data);
+      } else {
+        toast((res && res.msg) || "没保存上", true);
+      }
+    }).catch(function () { toast("请求失败", true); });
+  }
+
+  function checkFrameworkNow() {
+    var btn = document.querySelector("#stFwSeg button[data-v='now']");
+    if (btn) btn.disabled = true;
+    fetch(API + "/framework/check", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      toast((res && res.msg) || "已发出请求", !(res && res.status === "ok"));
+    }).catch(function () { toast("请求失败", true); })
+      .then(function () {
+        if (btn) { setTimeout(function () { btn.disabled = false; }, 4000); }
+      });
   }
 
   function unblockUpdater(id) {
@@ -1233,6 +1603,8 @@
 
   /* ===== 趋势折线 ===== */
   var trendPts = [], trendTimer = null, trendSolo = null;
+  // 上一帧算出来的坐标映射 + 当前悬停的时间点：鼠标移上来靠它反查最近那条采样
+  var trendGeo = null, trendHoverT = null;
   var TREND_COLORS = { disk: "#ff7b6a", mem: "#4fd1c5", cpu: "#e8a020" };
   var TREND_NAMES = { disk: "磁盘", mem: "内存", cpu: "CPU" };
 
@@ -1280,12 +1652,101 @@
     });
   }
 
+  var trendGeom = null, trendHoverIdx = null, trendPinned = false;
+
+  function trendStamp(ts) {
+    return new Date(ts * 1000).toLocaleString("zh-CN", {
+      month: "2-digit", day: "2-digit", hour: "2-digit",
+      minute: "2-digit", second: "2-digit", hour12: false
+    });
+  }
+
+  function updateTrendTip(p, yOf) {
+    var tip = document.getElementById("trTip");
+    if (!tip) return;
+    if (!p || !trendGeom) { tip.style.display = "none"; return; }
+    var hx = trendGeom.padL + ((p.t - trendGeom.t0) / trendGeom.span) * trendGeom.iw;
+    var html = '<div class="tt-time">' + trendStamp(p.t) +
+               (trendPinned ? " · 已定点" : "") + "</div>";
+    ["cpu", "mem", "disk"].forEach(function (k) {
+      var v = p[k];
+      var txt = (typeof v === "number" && isFinite(v)) ? v.toFixed(1) + "%" : "无采样";
+      html += '<div class="tt-row"><i style="background:' + TREND_COLORS[k] + '"></i>' +
+              TREND_NAMES[k] + "<em>" + txt + "</em></div>";
+    });
+    if (typeof p.tok === "number" && isFinite(p.tok)) {
+      html += '<div class="tt-row"><i style="background:#8890a0"></i>tokens<em>' +
+              fmtNum(p.tok) + "</em></div>";
+    }
+    tip.innerHTML = html;
+
+    var w = trendGeom.w, h = trendGeom.h;
+    var left = Math.max(62, Math.min(w - 62, hx));
+    var ref = (trendSolo && typeof p[trendSolo] === "number")
+      ? p[trendSolo]
+      : Math.max(p.cpu || 0, p.mem || 0, p.disk || 0);
+    var top = (typeof yOf === "function") ? yOf(ref) - 12 : 12;
+    // 贴顶就翻到点下面，免得被裁掉
+    if (top < 76) { top += 26; tip.style.transform = "translate(-50%,0)"; }
+    else { tip.style.transform = "translate(-50%,-100%)"; }
+    top = Math.max(4, Math.min(h - 10, top));
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+    tip.style.display = "block";
+  }
+
+  function trendPick(clientX) {
+    var cv = document.getElementById("trend");
+    if (!cv || !trendGeom || !trendGeom.pts || !trendGeom.pts.length) return null;
+    var r = cv.getBoundingClientRect();
+    var x = clientX - r.left;
+    if (x < trendGeom.padL - 8 || x > trendGeom.padL + trendGeom.iw + 8) return null;
+    var t0 = trendGeom.t0, span = trendGeom.span, pts = trendGeom.pts;
+    var t = t0 + Math.max(0, Math.min(1, (x - trendGeom.padL) / trendGeom.iw)) * span;
+    // 采样按时间递增，二分找最近那个点
+    var lo = 0, hi = pts.length - 1;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (pts[mid].t < t) lo = mid + 1; else hi = mid;
+    }
+    if (lo > 0 && Math.abs(pts[lo - 1].t - t) <= Math.abs(pts[lo].t - t)) lo -= 1;
+    return lo;
+  }
+
+  function bindTrendHover() {
+    var cv = document.getElementById("trend");
+    if (!cv || cv._trendBound) return;
+    cv._trendBound = true;
+    cv.addEventListener("pointermove", function (e) {
+      if (trendPinned) return;
+      var idx = trendPick(e.clientX);
+      if (idx === trendHoverIdx) return;
+      trendHoverIdx = idx;
+      drawTrend(trendPts);
+    });
+    cv.addEventListener("pointerdown", function (e) {
+      var idx = trendPick(e.clientX);
+      if (idx == null) return;
+      if (trendPinned && trendHoverIdx === idx) { trendPinned = false; trendHoverIdx = null; }
+      else { trendPinned = true; trendHoverIdx = idx; }
+      drawTrend(trendPts);
+    });
+    cv.addEventListener("pointerleave", function () {
+      if (trendPinned || trendHoverIdx == null) return;
+      trendHoverIdx = null;
+      drawTrend(trendPts);
+    });
+  }
+
   function loadTrend() {
     fetch(API + "/history", { credentials: "include" })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res || res.status !== "ok" || !res.data) throw new Error("bad payload");
         trendPts = res.data.points || [];
+        if (trendHoverIdx != null && trendHoverIdx >= trendPts.length) {
+          trendHoverIdx = null; trendPinned = false;
+        }
         var rng = document.getElementById("trRange");
         if (rng) rng.textContent = res.data.hours || 24;
         updateTrendHint();
@@ -1365,6 +1826,8 @@
     }
 
     if (!ok) {
+      trendGeom = null; trendHoverIdx = null;
+      updateTrendTip(null);
       g.fillStyle = "rgba(154,154,164,.6)";
       g.fillText("采样不足，暂时画不出曲线", padL + 8, padT + ih / 2);
       return;
@@ -1378,6 +1841,9 @@
 
     var t0 = seq[0].t, t1 = seq[seq.length - 1].t;
     var span = Math.max(1, t1 - t0);
+    // 记下这次的坐标尺，鼠标挪动时靠它把像素反推成时刻
+    trendGeom = { padL: padL, iw: iw, padT: padT, ih: ih, t0: t0, span: span,
+                  w: w, h: h, yOf: yOf, pts: points };
 
     function line(key, color, wide) {
       g.beginPath();
@@ -1422,6 +1888,27 @@
       var tag = TREND_NAMES[trendSolo] + " · 自适应";
       g.fillText(tag, padL + 6, padT + 9);
     }
+
+    // 定点：竖虚线 + 那一刻的圆点，具体数值交给浮层说
+    var hp = (trendHoverIdx != null && points[trendHoverIdx]) ? points[trendHoverIdx] : null;
+    if (hp) {
+      var hx = padL + ((hp.t - t0) / span) * iw;
+      g.save();
+      g.strokeStyle = "rgba(255,255,255,.26)";
+      g.lineWidth = 1;
+      if (g.setLineDash) g.setLineDash([3, 3]);
+      g.beginPath(); g.moveTo(hx, padT); g.lineTo(hx, padT + ih); g.stroke();
+      if (g.setLineDash) g.setLineDash([]);
+      (trendSolo ? [trendSolo] : ["cpu", "mem", "disk"]).forEach(function (k) {
+        var v = hp[k];
+        if (typeof v !== "number" || !isFinite(v)) return;
+        g.beginPath(); g.fillStyle = TREND_COLORS[k];
+        g.arc(hx, yOf(v), 3.1, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = "rgba(8,8,10,.85)"; g.lineWidth = 1.3; g.stroke();
+      });
+      g.restore();
+    }
+    updateTrendTip(hp, yOf);
   }
 
   /* ===== 日报 / 周报导出 ===== */
@@ -1537,11 +2024,12 @@
         var d = res.data;
         document.getElementById("stStamp").textContent =
           new Date(d.ts * 1000).toLocaleTimeString("zh-CN", { hour12: false });
-        ver.textContent = "v" + d.version;
+        ver.textContent = vtag(d.version);
         renderAdapters(d.adapters || []);
         renderModels(d.models || {}, d.tokens || {});
         renderPlugins(d.plugins || {});
         renderUpdater(d.updater || null);
+        renderFramework(d.framework_updater || null);
         renderHost(d.host || {});
         renderAlerts(d.alerts || []);
         feedIdle(d);
@@ -1559,6 +2047,8 @@
     stTimer = setInterval(loadStatus, 5000);
     // 趋势不用跟状态一样勤：采样点本来 20 秒才落一个
     loadTrend();
+    bindTrendHover();
+    bindFolds();
     bindLegend(); syncLegend(); updateTrendHint();
     if (trendTimer) clearInterval(trendTimer);
     trendTimer = setInterval(loadTrend, 30000);
@@ -2106,6 +2596,8 @@
   document.getElementById("stRefresh").addEventListener("click", loadStatus);
   var upNow = document.querySelector("#stUpSeg button[data-v='now']");
   if (upNow) upNow.addEventListener("click", checkUpdaterNow);
+  var fwNow = document.querySelector("#stFwSeg button[data-v='now']");
+  if (fwNow) fwNow.addEventListener("click", checkFrameworkNow);
   document.getElementById("stReport").addEventListener("click", function () { exportReport("day"); });
   document.getElementById("stReportW").addEventListener("click", function () { exportReport("week"); });
   document.getElementById("stDiag").addEventListener("click", exportDiag);
@@ -2124,6 +2616,7 @@
         var d = res.data;
         state.mode = d.mode; state.scheme = d.scheme;
         state.auto = !!d.auto; state.loop = !!d.loop; state.duration = d.duration || 14;
+        state.voice = d.voice !== false;
       }
     })
     .catch(function () { toast("读不到面板配置，用默认值先跑", true); })
