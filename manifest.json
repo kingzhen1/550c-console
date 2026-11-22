@@ -1,7 +1,7 @@
 {
   "display_name": "550C 操作台",
   "plugin_id": "kira-ai-plugin-550c-boot",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "author": "硳磲",
   "description": "把 550C 无人机基站开机动画接进 KiraAI 面板：播完展示适配器与主机实时状态，收起后是带时钟与负载的待机台，可拉出当日报错列表与用量/金额视图。1.8.0 起自带插件自动更新（备份、回滚、失败黑名单，不新装不碰自己）；1.9.0 起再加框架本体自动更新（默认关，换前整份备份、装依赖、导入冒烟、失败回滚，全过才 exit 42 重启），趋势折线可定点查看任意时刻的 CPU/内存/磁盘与 tokens。\n原版出自哔哩哔哩 @图寻患者、@某人在此处（DeepSeek Harness 版），本插件为 KiraAI 适配与扩展，详见 README。",
   "repo": "https://github.com/kingzhen1/550c-console",
