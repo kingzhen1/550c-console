@@ -39,7 +39,7 @@
 - **看门狗不再绑死 Termux**：脚本里没有任何平台专属命令，但进程探测原先只走 `pgrep`，Windows 上直接判死。现在按 `pgrep → ps -A -o → ps -ef → /proc → psutil` 逐级退让，哪台机器有什么就用什么；`selfheal._proc_running()` 同样补齐了 Windows 分支（`wmic` + `psutil`）。
 - **磁盘 / 内存按各自系统取**：磁盘根不再写死 `/`，Windows 取 `SystemDrive`；内存优先读 `/proc/meminfo`，读不到就用 `psutil.virtual_memory()`（macOS / Windows 都走这条）。
 - **面板显示实际环境**：右上角那行副标题由写死的 `termux · 独立进程` 改成自动识别——Termux / Linux / WSL / 容器 / macOS / Windows，鼠标悬停能看到 `platform.platform()` 全串；未启动时的提示也按环境给出对应启动命令（`--loop`、任务计划、launchd、supervisor、systemd）。识别逻辑在 `watchdog.runtime_env()`，随状态一起落盘。
-- **磁盘告警阈值 92 → 95**：92% 太容易长期挂在「部分异常」，留出真正的预警余量。
+- **磁盘告警阈值抬到 95**：本机磁盘已经常驻 93% 上下，90 的线等于常年挂一条「部分异常」，预警就没意义了；线抬高，真到 95 才响。
 - **版本号**：`manifest.json` 抬到 `1.11.0`。
 
 ### v1.10.0
