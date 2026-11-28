@@ -16,9 +16,13 @@ from core.plugin import BasePlugin, PluginContext, register, PageMenu, PluginPag
 
 try:
     from .fwupdater import FrameworkUpdater
+    from .selfheal import SelfHealer
+    from .pluginguard import PluginGuard
     from .updater import AutoUpdater
 except ImportError:  # 离线自测时本文件不是包，退回平级导入
     from fwupdater import FrameworkUpdater
+    from selfheal import SelfHealer
+    from pluginguard import PluginGuard
     from updater import AutoUpdater
 
 PLUGIN_ID = "kira-ai-plugin-550c-boot"
@@ -230,6 +234,11 @@ class Boot550CPlugin(BasePlugin):
         self.updater = None
         # 框架（本体）更新器，另一条独立循环
         self.fwupdater = None
+        # 自愈：看门狗桥 + 报错修理。故意和上面两个更新器分开，
+        # 它管的是「坏了怎么办」，不是「有新版怎么办」
+        self.healer = None
+        # 插件熔断：已装插件影响使用时，只停它，保住对话
+        self.guard = None
         self._warm_cpu()
 
     @staticmethod
@@ -842,7 +851,35 @@ class Boot550CPlugin(BasePlugin):
             logger.error("[550C] 框架更新没挂起来：%s", exc)
             self.fwupdater = None
 
+        # 自愈：看门狗桥 + 报错自动修理
+        try:
+            self.healer = SelfHealer(self)
+            await self.healer.start()
+        except Exception as exc:
+            logger.error("[550C] 自愈没挂起来：%s", exc)
+            self.healer = None
+
+        # 插件熔断：某个插件把聊天搞坏了就先停它
+        try:
+            self.guard = PluginGuard(self)
+            await self.guard.start()
+        except Exception as exc:
+            logger.error("[550C] 插件熔断没挂起来：%s", exc)
+            self.guard = None
+
     async def terminate(self):
+        if self.guard is not None:
+            try:
+                await self.guard.stop()
+            except Exception as exc:
+                logger.warning("[550C] 插件熔断收尾失败：%s", exc)
+            self.guard = None
+        if self.healer is not None:
+            try:
+                await self.healer.stop()
+            except Exception as exc:
+                logger.warning("[550C] 自愈收尾失败：%s", exc)
+            self.healer = None
         if self.fwupdater is not None:
             try:
                 await self.fwupdater.stop()
@@ -1286,7 +1323,8 @@ class Boot550CPlugin(BasePlugin):
         patch = {}
         if "auto_update" in payload:
             patch["auto_update"] = bool(payload["auto_update"])
-        for key, lo, hi in (("update_interval_hours", 1, 168), ("update_max_per_run", 1, 10)):
+        # 更新间隔上限 23 小时：一天至少查一次，不给「设成一周就完事」留口子
+        for key, lo, hi in (("update_interval_hours", 1, 23), ("update_max_per_run", 1, 10)):
             if key in payload:
                 try:
                     patch[key] = max(lo, min(hi, int(payload[key])))
@@ -1381,3 +1419,220 @@ class Boot550CPlugin(BasePlugin):
         self.updater.unblock(pid)
         return {"status": "ok", "msg": "已放出来，下轮会重试一次",
                 "data": await asyncio.to_thread(self.updater.status)}
+
+    # ---- 自愈之一：看门狗（独立于 AI 的最后防线） ----
+    @register.api("GET", "/watchdog")
+    async def api_watchdog(self):
+        if self.healer is None:
+            return {"status": "error", "msg": "自愈没挂起来，看日志里的 550C 记录"}
+        return {"status": "ok", "data": await asyncio.to_thread(self.healer.watchdog_status)}
+
+    @register.api("POST", "/watchdog/run")
+    async def api_watchdog_run(self, payload: dict = None):
+        """自检修。看门狗在跑就只写 trigger，不在跑面板代它跑一轮。"""
+        if self.healer is None:
+            return {"status": "error", "msg": "自愈没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        mode = str(payload.get("mode") or "panel")
+
+        async def _run():
+            res = await self.healer.run_watchdog(mode)
+            logger.info("[550C] 自检修（%s）：%s", res.get("mode"), res.get("msg"))
+
+        # 代跑可能几十秒，别把面板请求挂着
+        asyncio.create_task(_run(), name="550c-watchdog-run")
+        return {"status": "ok", "msg": "已开始自检"}
+
+    # ---- 熔断：一个插件炸得太凶就先把它摘下来，别拉着整个天网陪葬 ----
+    @register.api("GET", "/guard")
+    async def api_guard(self):
+        if self.guard is None:
+            return {"status": "error", "msg": "熔断没挂起来"}
+        return {"status": "ok", "data": await asyncio.to_thread(self.guard.status)}
+
+    @register.api("POST", "/guard/run")
+    async def api_guard_run(self, payload: dict = None):
+        """手动巡一轮：看日志、停该停的、放该放的。"""
+        if self.guard is None:
+            return {"status": "error", "msg": "熔断没挂起来"}
+        if getattr(self.guard, "_busy", False):
+            return {"status": "ok", "msg": "上一轮还没走完"}
+        res = await self.guard.tick(source="panel")
+        n = len([x for x in (res.get("done") or []) if x.get("ok")])
+        return {"status": "ok", "msg": ("停用 %d 个插件" % n) if n else "这一轮没动手", "data": res}
+
+    @register.api("POST", "/guard/restore")
+    async def api_guard_restore(self, payload: dict = None):
+        """手动放回：把还在冷却里的插件提前恢复。"""
+        if self.guard is None:
+            return {"status": "error", "msg": "熔断没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        pid = str(payload.get("id") or "").strip()
+        if not pid:
+            return {"status": "error", "msg": "没说是哪个插件"}
+        res = await self.guard.restore(pid)
+        return {"status": "ok" if res.get("ok") else "error", "msg": res.get("msg") or "",
+                "data": await asyncio.to_thread(self.guard.status)}
+
+    # ---- 自愈之二：报错自动修理 ----
+    @register.api("GET", "/repair")
+    async def api_repair(self):
+        if self.healer is None:
+            return {"status": "error", "msg": "自愈没挂起来"}
+        return {"status": "ok", "data": await asyncio.to_thread(self.healer.status)}
+
+    @register.api("POST", "/repair/scan")
+    async def api_repair_scan(self, payload: dict = None):
+        """只查不动手：把今天的报错按规则过一遍，告诉面板哪些能修。"""
+        if self.healer is None:
+            return {"status": "error", "msg": "自愈没挂起来"}
+        plan = await self.healer.scan()
+        return {"status": "ok", "data": plan}
+
+    @register.api("POST", "/repair/run")
+    async def api_repair_run(self, payload: dict = None):
+        """检查并修理。和插件更新那颗按钮一个路子：点了就跑，面板自己看状态。"""
+        if self.healer is None:
+            return {"status": "error", "msg": "自愈没挂起来"}
+        if self.healer._busy:
+            return {"status": "ok", "msg": "正在修，别急"}
+        payload = payload if isinstance(payload, dict) else {}
+        mode = "manual" if str(payload.get("mode") or "manual") == "manual" else "auto"
+
+        async def _run():
+            plan = await self.healer.scan()
+            if not plan.get("fixable"):
+                summary = "没有能修的地方，都是要人看一眼的"
+                self.healer.write_json(self.healer.repair_state_path(), {
+                    "last_run": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_mode": mode, "last_summary": summary,
+                    "last_plan": {k: plan.get(k) for k in
+                                  ("fixable", "auto", "manual", "unknown", "date", "counts")},
+                })
+                logger.info("[550C] 手动修报错：%s", summary)
+                return
+            res = await self.healer.run_repairs(plan, mode=mode)
+            self.healer.write_json(self.healer.repair_state_path(), {
+                "last_run": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "last_mode": mode, "last_summary": res.get("msg"),
+                "last_plan": {k: plan.get(k) for k in
+                              ("fixable", "auto", "manual", "unknown", "date", "counts")},
+            })
+            logger.info("[550C] 手动修报错：%s", res.get("msg"))
+
+        asyncio.create_task(_run(), name="550c-repair-run")
+        return {"status": "ok", "msg": "开始检查并修理"}
+
+    @register.api("POST", "/repair/settings")
+    async def api_repair_settings(self, payload: dict = None):
+        if self.healer is None:
+            return {"status": "error", "msg": "自愈没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        patch = {}
+        if "repair_auto" in payload:
+            patch["repair_auto"] = bool(payload["repair_auto"])
+        if "watchdog_inline" in payload:
+            patch["watchdog_inline"] = bool(payload["watchdog_inline"])
+        # 检查间隔硬压到 12 小时以内：一天至少扫两次，别让人设个 23:59 就当上了保险
+        for key, lo, hi in (("repair_interval_min", 5, 720),
+                            ("repair_cooldown_min", 1, 720)):
+            if key in payload:
+                try:
+                    patch[key] = max(lo, min(hi, int(payload[key])))
+                except (TypeError, ValueError):
+                    pass
+        if "repair_auto_max_risk" in payload:
+            r = str(payload["repair_auto_max_risk"] or "").lower()
+            if r in ("low", "mid", "none"):
+                patch["repair_auto_max_risk"] = r
+        if not patch:
+            return {"status": "error", "msg": "没有可保存的字段"}
+
+        mgr = getattr(self.ctx, "plugin_mgr", None)
+        if mgr is None or not hasattr(mgr, "update_plugin_config"):
+            return {"status": "error", "msg": "当前环境不支持写入插件配置"}
+        try:
+            await mgr.update_plugin_config(PLUGIN_ID, patch)
+        except Exception as exc:
+            logger.error("[550C] 保存自愈设置失败：%s", exc)
+            return {"status": "error", "msg": "保存失败：%s" % exc}
+
+        self.plugin_cfg = getattr(self, "plugin_cfg", None) or {}
+        self.plugin_cfg.update(patch)
+        logger.info("[550C] 自愈设置已更新：%s", patch)
+        return {"status": "ok", "msg": "已记住", "data": await asyncio.to_thread(self.healer.status)}
+
+    # ------------------------------------------------------------ 插件熔断
+
+    @register.api("GET", "/guard")
+    async def api_guard(self):
+        if self.guard is None:
+            return {"status": "error", "msg": "插件熔断没挂起来"}
+        return {"status": "ok", "data": await asyncio.to_thread(self.guard.status)}
+
+    @register.api("POST", "/guard/scan")
+    async def api_guard_scan(self, payload: dict = None):
+        """只看不动手：把窗口内的插件报错摊开，说明谁快到了线。"""
+        if self.guard is None:
+            return {"status": "error", "msg": "插件熔断没挂起来"}
+        return {"status": "ok", "data": await self.guard._scan_async()}
+
+    @register.api("POST", "/guard/run")
+    async def api_guard_run(self, payload: dict = None):
+        if self.guard is None:
+            return {"status": "error", "msg": "插件熔断没挂起来"}
+        res = await self.guard.tick(source="panel")
+        return {"status": "ok", "data": res}
+
+    @register.api("POST", "/guard/restore")
+    async def api_guard_restore(self, payload: dict = None):
+        """手动把一个被熔断的插件放回来。"""
+        if self.guard is None:
+            return {"status": "error", "msg": "插件熔断没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        pid = str(payload.get("pid") or "").strip()
+        if not pid:
+            return {"status": "error", "msg": "要恢复哪个插件"}
+        res = await self.guard.restore(pid)
+        return {"status": "ok" if res.get("ok") else "error", "msg": res.get("msg")}
+
+    @register.api("POST", "/guard/settings")
+    async def api_guard_settings(self, payload: dict = None):
+        if self.guard is None:
+            return {"status": "error", "msg": "插件熔断没挂起来"}
+        payload = payload if isinstance(payload, dict) else {}
+        patch = {}
+        if "guard_auto" in payload:
+            patch["guard_auto"] = bool(payload["guard_auto"])
+        for key, lo, hi in (("guard_interval_sec", 20, 600),
+                            ("guard_window_min", 3, 180),
+                            ("guard_min_errors", 2, 50),
+                            ("guard_cooldown_min", 1, 720),
+                            ("guard_restore_hours", 0, 720),
+                            ("guard_max_trips_per_day", 1, 20)):
+            if key in payload:
+                try:
+                    patch[key] = max(lo, min(hi, int(payload[key])))
+                except (TypeError, ValueError):
+                    pass
+        if "guard_whitelist" in payload:
+            v = payload["guard_whitelist"]
+            if isinstance(v, (list, tuple)):
+                patch["guard_whitelist"] = ",".join(str(x).strip() for x in v if str(x).strip())
+            else:
+                patch["guard_whitelist"] = str(v or "").strip()
+        if not patch:
+            return {"status": "error", "msg": "没有可保存的字段"}
+
+        mgr = getattr(self.ctx, "plugin_mgr", None)
+        if mgr is None or not hasattr(mgr, "update_plugin_config"):
+            return {"status": "error", "msg": "当前环境不支持写入插件配置"}
+        try:
+            await mgr.update_plugin_config(PLUGIN_ID, patch)
+        except Exception as exc:
+            logger.error("[550C] 保存熔断设置失败：%s", exc)
+            return {"status": "error", "msg": "保存失败：%s" % exc}
+        self.plugin_cfg = getattr(self, "plugin_cfg", None) or {}
+        self.plugin_cfg.update(patch)
+        logger.info("[550C] 熔断设置已更新：%s", patch)
+        return {"status": "ok", "msg": "已记住", "data": await asyncio.to_thread(self.guard.status)}

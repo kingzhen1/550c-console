@@ -1,9 +1,9 @@
 {
   "display_name": "550C 操作台",
   "plugin_id": "kira-ai-plugin-550c-boot",
-  "version": "1.9.3",
+  "version": "1.11.0",
   "author": "硳磲",
-  "description": "把 550C 无人机基站开机动画接进 KiraAI 面板：播完展示适配器与主机实时状态，收起后是带时钟与负载的待机台，可拉出当日报错列表与用量/金额视图。1.8.0 起自带插件自动更新（备份、回滚、失败黑名单，不新装不碰自己）；1.9.0 起再加框架本体自动更新（默认关，换前整份备份、装依赖、导入冒烟、失败回滚，全过才 exit 42 重启），趋势折线可定点查看任意时刻的 CPU/内存/磁盘与 tokens。\n原版出自哔哩哔哩 @图寻患者、@某人在此处（DeepSeek Harness 版），本插件为 KiraAI 适配与扩展，详见 README。",
+  "description": "把 550C 无人机基站开机动画接进 KiraAI 面板：播完展示适配器与主机实时状态，收起后是带时钟与负载的待机台，可拉出当日报错列表与用量/金额视图。1.8.0 起自带插件自动更新（备份、回滚、失败黑名单，不新装不碰自己）；1.9.0 起再加框架本体自动更新（默认关，换前整份备份、装依赖、导入冒烟、失败回滚，全过才 exit 42 重启），趋势折线可定点查看任意时刻的 CPU/内存/磁盘与 tokens；1.10.0 起看门狗灯位去重、倒计时改秒级、文案规范化；1.11.0 起看门狗不再绑死 Termux，Linux/macOS/Windows/容器都能跑，面板自动显示实际运行环境。\n原版出自哔哩哔哩 @图寻患者、@某人在此处（DeepSeek Harness 版），本插件为 KiraAI 适配与扩展，详见 README。",
   "repo": "https://github.com/kingzhen1/550c-console",
   "icon": "icon.png",
   "core_version": ">=2.23.0",
@@ -16,11 +16,11 @@
   "locales": {
     "zh": {
       "display_name": "550C 操作台",
-      "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；播完展示适配器与主机状态；待机时带时钟与负载；可拉出当日报错列表与用量/金额视图。1.8.0 起带插件自动更新（备份、回滚、黑名单）；1.9.0 起带框架本体自动更新（默认关，备份+冒烟+失败回滚后才重启）与趋势定点查看。\n原版为 DeepSeek Harness 版，作者 @图寻患者、@某人在此处；本插件为 KiraAI 适配与扩展，详见 README。1.9.2：框架更新复用 github-tool 的 token（不再被匿名 60 次/时卡成红字），提示语改为「这轮没拉到」；开机欢迎语只留声音，删掉屏幕上那行大字。"
+      "description": "550C 开机动画控制台：简化/完整模式、四套配色、自动播放与重播；播完展示适配器与主机状态；待机时带时钟与负载；可拉出当日报错列表与用量/金额视图。1.8.0 起带插件自动更新（备份、回滚、黑名单）；1.9.0 起带框架本体自动更新（默认关，备份+冒烟+失败回滚后才重启）与趋势定点查看。\n原版为 DeepSeek Harness 版，作者 @图寻患者、@某人在此处；本插件为 KiraAI 适配与扩展，详见 README。1.9.2：框架更新复用 github-tool 的 token（不再被匿名 60 次/时卡成红字），提示语改为「这轮没拉到」；开机欢迎语只留声音，删掉屏幕上那行大字。1.10.0：看门狗那排灯去掉重复的磁盘/内存，「下一轮」按秒级显示；界面文案规范化；附 ~/wd.sh 一键常驻脚本。1.11.0：看门狗跨平台——进程探测不再依赖 pgrep，磁盘/内存分别按各自系统取值（Windows 用 SystemDrive、macOS 走 psutil），面板右上角自动显示 Termux / Linux / WSL / 容器 / macOS / Windows，未启动时的提示也按环境给对应命令；磁盘告警阈值默认 92→95。"
     },
     "en": {
       "display_name": "550C Console",
-      "description": "550C UAV base-station boot animation as a KiraAI plugin page: live adapter/host status after boot, a clock+load standby panel, a daily error list and a token/CNY usage view. 1.8.0 added plugin auto-update (backup, rollback, failure blacklist); 1.9.0 adds framework self-update (off by default; full backup, dependency install, import smoke test, rollback on failure, restart only when all pass) and pin-point inspection on the trend chart.\nOriginal DeepSeek Harness build by Bilibili @图寻患者 & @某人在此处; this is the KiraAI port. See README for details."
+      "description": "550C UAV base-station boot animation as a KiraAI plugin page: live adapter/host status after boot, a clock+load standby panel, a daily error list and a token/CNY usage view. 1.8.0 added plugin auto-update (backup, rollback, failure blacklist); 1.9.0 adds framework self-update (off by default; full backup, dependency install, import smoke test, rollback on failure, restart only when all pass) and pin-point inspection on the trend chart.\nOriginal DeepSeek Harness build by Bilibili @图寻患者 & @某人在此处; this is the KiraAI port. See README for details. 1.10.0: watchdog strip no longer duplicates disk/mem, countdown in seconds, UI copy normalized, one-command wd.sh launcher. 1.11.0: the watchdog is no longer Termux-only - process detection drops the pgrep dependency, disk/mem are read per-OS (SystemDrive on Windows, psutil on macOS), the panel auto-labels the real runtime (Termux / Linux / WSL / Docker / macOS / Windows) and shows the matching start command; disk warn threshold 92 -> 95."
     }
   },
   "original_authors": [

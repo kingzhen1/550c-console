@@ -86,7 +86,7 @@
     "name": "多久检查一次（小时）",
     "type": "integer",
     "default": 6,
-    "hint": "1 到 168 小时。到点才会动，中途重启不会提前——开机后的第一次从当前时刻往后算一个周期。"
+    "hint": "1 到 23 小时（上限压死在一天以内）。到点自动查一遍市场并装更新，单轮有上限，坏的会连着失败几次后自动拉黑。"
   },
   "update_max_per_run": {
     "name": "每次最多更新几个",
@@ -123,5 +123,88 @@
     "type": "switch",
     "default": true,
     "hint": "开机动画收尾时浮一行「welcome back, master」并念出来。想用原声就把音频丢进插件目录 web/audio/welcome-master.mp3，会优先播它；没有这个文件就用浏览器自带的中文女声合成一句，调过音调、比默认略低略快。关掉就是纯静音。"
+  },
+  "repair_auto": {
+    "name": "报错自动修理",
+    "type": "switch",
+    "default": true,
+    "hint": "开着就每轮扫一次当日报错，把能修的自己收拾掉（重载插件、截采样、数据库 checkpoint、拉起链路）。只做低风险那一档，超时不修、缺包不修、key 错了不修——那些修一万次也一样。"
+  },
+  "repair_interval_min": {
+    "name": "多久扫一次（分钟）",
+    "type": "integer",
+    "default": 30,
+    "hint": "5 到 720 分钟（上限压死在 12 小时，一天至少扫两回，不给你设个 23:59 就算上保险的机会）。报错不是每刻都有，扫太勤只是白读日志。"
+  },
+  "repair_auto_max_risk": {
+    "name": "自动修理允许到哪一档",
+    "type": "enum",
+    "options": [
+      "low",
+      "mid",
+      "none"
+    ],
+    "default": "low",
+    "hint": "low=只重载插件、清采样、做 checkpoint 这种「修了只会更好」的；mid=连清缓存、拉起进程一起做；none=自动模式下什么都不动，只在面板上标出来给按钮点。手动点按钮永远做到 mid。"
+  },
+  "repair_cooldown_min": {
+    "name": "同类报错冷却（分钟）",
+    "type": "integer",
+    "default": 20,
+    "hint": "同一类修法多久内不重复动手。没有这道闸，一条反复刷屏的报错会把插件重载成风车。"
+  },
+  "watchdog_inline": {
+    "name": "看门狗不在时代跑",
+    "type": "switch",
+    "default": true,
+    "hint": "scripts/watchdog.py 常驻进程没被拉起时，点自检修由面板代它跑一轮 --once。想彻底交给外部进程管，就关掉这项。"
+  },
+  "guard_auto": {
+    "name": "插件熔断（影响使用时自动停用）",
+    "type": "switch",
+    "default": true,
+    "hint": "和自动更新是两件事：这里管的是「已装插件把聊天搞坏了」。开着时，某个插件在窗口内持续抛错，就只停它，保住对话——能对话你才有手去修它。白名单和 550C 自己永不停用。"
+  },
+  "guard_interval_sec": {
+    "name": "熔断检查间隔（秒）",
+    "type": "integer",
+    "default": 60,
+    "hint": "多少秒过一遍日志。20 到 600。"
+  },
+  "guard_window_min": {
+    "name": "熔断判定时间窗（分钟）",
+    "type": "integer",
+    "default": 20,
+    "hint": "只看最近这段时间的报错，老问题不翻旧账。3 到 180。"
+  },
+  "guard_min_errors": {
+    "name": "触发熔断的报错条数",
+    "type": "integer",
+    "default": 3,
+    "hint": "窗口内同一个插件出现这么多条 ERROR 才动手。设太低会误伤，太高就拦不住。2 到 50。"
+  },
+  "guard_cooldown_min": {
+    "name": "同一插件熔断冷却（分钟）",
+    "type": "integer",
+    "default": 60,
+    "hint": "刚停过的插件，这段时间内不再重复处理，避免反复开关。"
+  },
+  "guard_restore_hours": {
+    "name": "停用多久后自动放回（小时）",
+    "type": "integer",
+    "default": 24,
+    "hint": "到点自动重新启用一次，让它有机会被修好。填 0 表示不自动放回，等手动。"
+  },
+  "guard_max_trips_per_day": {
+    "name": "同一插件每天最多熔断次数",
+    "type": "integer",
+    "default": 3,
+    "hint": "超过这个次数就不再自动停，改为等人看一眼——反复触发说明是代码问题，不是运行时状态问题。"
+  },
+  "guard_whitelist": {
+    "name": "熔断白名单（plugin_id）",
+    "type": "string",
+    "default": "kira-ai-plugin-550c-boot,default-chat,kira_session_plugin,kira-ai-plugin-payload-defense,kira_persona_progression,kira_accelerator,sustained-chat",
+    "hint": "逗号分隔。名单里的插件永不自动停用。550C 自己无论写不写都在里面。"
   }
 }

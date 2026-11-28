@@ -118,7 +118,7 @@ class AutoUpdater:
         exclude = str(cfg.get("update_exclude") or "").strip()
         return {
             "enabled": bool(cfg.get("auto_update", DEFAULTS["auto_update"])),
-            "interval_h": _int("update_interval_hours", 1, 168),
+            "interval_h": _int("update_interval_hours", 1, 23),   # 上限 23 小时：一天里必须过一遍
             "max_per_run": _int("update_max_per_run", 1, 10),
             "exclude": [x.strip() for x in exclude.replace("，", ",").split(",") if x.strip()],
         }

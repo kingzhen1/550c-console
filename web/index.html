@@ -78,9 +78,130 @@
   .toast.show{opacity:1;transform:none}
   .toast.err{border-left-color:#e05030}
 
+  /* ===== 看门狗：最后一道防线，这块要有威慑力 ===== */
+  .wd-sec{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .wd-tag{font-size:10px;letter-spacing:.2em;padding:2px 8px;border-radius:3px;
+    border:1px solid var(--line-2);color:var(--fg-3);font-weight:600}
+  .wd-tag.armed{color:var(--green);border-color:rgba(126,224,106,.5);background:rgba(126,224,106,.08);
+    box-shadow:0 0 12px rgba(126,224,106,.18)}
+  .wd-tag.degraded{color:var(--amber);border-color:rgba(232,160,32,.55);background:var(--amber-soft);
+    animation:pulseBad 1.8s ease-in-out infinite}
+  .wd-tag.down{color:#ff5230;border-color:rgba(255,82,48,.6);background:rgba(255,82,48,.1);
+    animation:pulseBad .9s ease-in-out infinite}
+
+  .wd-card{position:relative;margin:0 0 14px;border:1px solid #2a2226;border-radius:12px;overflow:hidden;
+    background:
+      repeating-linear-gradient(135deg,rgba(255,82,48,.05) 0 10px,transparent 10px 20px),
+      radial-gradient(120% 140% at 12% 0%,rgba(255,82,48,.09),transparent 62%),
+      linear-gradient(180deg,#0d0b0c,#08080a);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),0 10px 30px rgba(0,0,0,.5)}
+  .wd-card.armed{border-color:#22301f;
+    background:
+      repeating-linear-gradient(135deg,rgba(126,224,106,.045) 0 10px,transparent 10px 20px),
+      radial-gradient(120% 140% at 12% 0%,rgba(126,224,106,.09),transparent 62%),
+      linear-gradient(180deg,#0b0d0b,#08080a)}
+  .wd-card.degraded{border-color:#3a2a14}
+  .wd-card.down{border-color:#4a1a10}
+  /* 从右往左扫过去的警戒光带，只在非 armed 时出现 */
+  .wd-card::after{content:"";position:absolute;top:0;bottom:0;width:34%;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,82,48,.1),transparent);
+    transform:translateX(220%);opacity:0}
+  .wd-card.degraded::after,.wd-card.down::after{opacity:1;animation:wdSweep 3.4s linear infinite}
+  @keyframes wdSweep{0%{transform:translateX(-140%)}100%{transform:translateX(340%)}}
+
+  .wd-head{display:flex;align-items:center;gap:14px;padding:12px 14px;position:relative;z-index:1}
+  .wd-orb{position:relative;width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center}
+  .wd-orb span{position:absolute;inset:0;border-radius:50%;
+    border:1px solid rgba(126,224,106,.45);border-top-color:transparent;border-right-color:transparent;
+    animation:wdSpin 3.2s linear infinite}
+  .wd-orb span:nth-child(2){inset:5px;border-color:rgba(126,224,106,.22);
+    border-bottom-color:transparent;animation-duration:5s;animation-direction:reverse}
+  .wd-orb b{font-size:11px;letter-spacing:.06em;color:var(--green);
+    text-shadow:0 0 10px rgba(126,224,106,.55)}
+  .wd-card.degraded .wd-orb span{border-color:rgba(232,160,32,.45);border-top-color:transparent;border-right-color:transparent}
+  .wd-card.degraded .wd-orb b{color:var(--amber);text-shadow:0 0 10px rgba(232,160,32,.6)}
+  .wd-card.down .wd-orb span{border-color:rgba(255,82,48,.6);border-top-color:transparent;border-right-color:transparent;
+    animation-duration:1.4s}
+  .wd-card.down .wd-orb b{color:#ff5230;text-shadow:0 0 12px rgba(255,82,48,.8);
+    animation:pulseBad .9s ease-in-out infinite}
+  @keyframes wdSpin{to{transform:rotate(360deg)}}
+
+  .wd-meta{min-width:0;flex:1 1 auto}
+  .wd-l1{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .wd-l1 b{font-size:15px;letter-spacing:.22em;color:var(--green);font-weight:700;
+    text-shadow:0 0 14px rgba(126,224,106,.35)}
+  .wd-card.degraded .wd-l1 b{color:var(--amber);text-shadow:0 0 14px rgba(232,160,32,.4)}
+  .wd-card.down .wd-l1 b{color:#ff5230;text-shadow:0 0 16px rgba(255,82,48,.6);
+    animation:pulseBad 1.1s ease-in-out infinite}
+  .wd-l1 em{font-style:normal;font-size:10px;color:var(--fg-3);letter-spacing:.1em}
+  .wd-l2{margin-top:4px;font-size:11px;color:var(--fg-3);font-variant-numeric:tabular-nums;
+    display:flex;gap:12px;flex-wrap:wrap}
+  .wd-l2 i{font-style:normal;color:var(--fg-2)}
+  .wd-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex:0 0 auto}
+
+  .wd-layers{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px;position:relative;z-index:1}
+  .wd-layer{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;
+    padding:4px 9px;font-size:10.5px;background:#0b0b0e;color:var(--fg-3);max-width:100%}
+  .wd-layer i{width:6px;height:6px;border-radius:50%;background:var(--green);flex:0 0 auto;
+    box-shadow:0 0 7px rgba(126,224,106,.7)}
+  .wd-layer b{font-weight:400;color:var(--fg-2)}
+  .wd-layer.bad{border-color:rgba(255,82,48,.4);background:rgba(255,82,48,.06)}
+  .wd-layer.bad i{background:#ff5230;box-shadow:0 0 8px rgba(255,82,48,.8);animation:pulseBad 1.2s ease-in-out infinite}
+  .wd-layer.bad b{color:#ff9070}
+  .wd-layer small{color:var(--fg-3);font-size:9.5px;max-width:22ch;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+
+  .wd-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:9px 14px;border-top:1px solid #1b1719;background:rgba(0,0,0,.28);
+    font-size:10.5px;color:var(--fg-3);position:relative;z-index:1}
+  .wd-foot .spacer{flex:1 1 auto}
+  .wd-foot.cb{padding-top:6px;padding-bottom:7px;border-top:0;background:transparent;font-size:9.5px;color:#6b625e}
+  .wd-foot.cb #gdLine{max-width:44ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wd-foot select{background:#131316;color:var(--fg-2);border:1px solid var(--line-2);
+    border-radius:6px;padding:3px 6px;font:inherit;font-size:10.5px}
+  .wd-inl{display:flex;align-items:center;gap:6px;color:var(--fg-3)}
+  .wd-cb{display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    padding:2px 8px 2px 6px;border-radius:999px;background:rgba(96,168,255,.06);
+    border:1px solid rgba(96,168,255,.34);color:#6cb0ff;font:inherit}
+  .wd-cb b{font-size:9.5px;letter-spacing:.14em;font-weight:700}
+  .wd-cb i{font-style:normal;font-size:9.5px;color:var(--fg-3);letter-spacing:.06em}
+  .wd-cb:hover{border-color:rgba(96,168,255,.7);background:rgba(96,168,255,.12)}
+  .wd-cb.hot{border-color:rgba(232,160,32,.6);background:var(--amber-soft)}
+  .wd-cb.hot b{color:var(--amber);text-shadow:0 0 10px rgba(232,160,32,.6)}
+  .wd-cb.hot i{color:var(--amber)}
+  .wd-cb.off{opacity:.5}
+  .upd-iv{background:#131316;color:var(--fg-2);border:1px solid var(--line-2);
+    border-radius:6px;padding:2px 6px;font:inherit;font-size:10.5px;margin-left:auto}
+
+  /* ===== 熔断：插件把聊天搞坏了就先摘它 ===== */
+  .gd-body{padding:0;max-height:120px;overflow:auto}
+  .gd-body:empty{display:none}
+  .gd-body .gd-row:last-child{border-bottom:0}
+  .gd-row{display:grid;grid-template-columns:1fr 84px 74px 52px;gap:8px;align-items:center;
+    padding:5px 14px;border-bottom:1px solid #14171c;font-size:11px;border-top:1px solid #1b1719}
+  .gd-row:hover{background:#111419}
+  .gd-row .p{font-family:ui-monospace,monospace;font-size:10.5px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .gd-row .c{color:var(--fg-3);font-variant-numeric:tabular-nums;font-size:10px}
+  .gd-row .c.bad{color:#e05030}
+  .gd-row .c.warn{color:var(--amber)}
+  .gd-row .c.ok{color:#3fb27f}
+  .gd-row button{font:inherit;font-size:10px;padding:2px 6px;border-radius:5px;cursor:pointer;
+    background:#191d24;border:1px solid #2b313b;color:var(--fg-2)}
+  .gd-row button:hover{border-color:#4a5464;color:#fff}
+  @media (max-width:600px){
+    .gd-row{grid-template-columns:1fr 66px 46px}
+    .gd-row .c.trip{display:none}
+  }
+
   /* ===== 当日报错列表框（主区中间） ===== */
   .btn .cnt{margin-left:6px;font-size:10px;color:var(--fg-3);font-variant-numeric:tabular-nums}
   .btn .cnt.bad{color:#e05030}
+  /* 修理结果那一行：只报结果，不抢按钮的位 */
+  .er-fix-note{font-size:10px;color:var(--fg-3);max-width:34ch;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .er-fix-note.ok{color:#3fb27f}
+  .er-fix-note.bad{color:#e05030}
   .btn .cnt.warn{color:var(--amber)}
   .errs{position:absolute;left:50%;bottom:calc(16px + 7vh);transform:translate(-50%,0) translateY(12px) scale(.985);z-index:6;
     width:min(760px,94%);max-height:min(60%,540px);
@@ -500,6 +621,37 @@
         </span>
       </div>
       <div class="st-grid wrap collapsed" id="stFw"></div>
+      <div class="st-sec wd-sec">WATCHDOG · 最后防线
+        <span class="wd-tag" id="wdTag">待命中</span>
+        <button class="wd-cb" id="gdMark" title="插件熔断：过一遍日志，谁在炸就先摘谁">
+          <b>CB</b><i id="gdTag">待命中</i>
+        </button>
+        <span class="seg" id="wdSeg">
+          <button data-v="check" title="立即执行一轮自检：修复异常层级，不调用模型">立即自检</button>
+        </span>
+      </div>
+      <div class="wd-card armed" id="wdCard">
+        <div class="wd-head">
+          <div class="wd-orb"><span></span><span></span><b>WD</b></div>
+          <div class="wd-meta">
+            <div class="wd-l1"><b id="wdVerdict">ARMED</b><em id="wdSrc">独立进程</em></div>
+            <div class="wd-l2" id="wdL2"><span>心跳 <i>--</i></span><span>下一轮 <i>--</i></span></div>
+          </div>
+        </div>
+        <div class="wd-layers" id="wdLayers"></div>
+        <div class="gd-body" id="gdBody"></div>
+        <div class="wd-foot">
+          <span id="wdFootNote">读不到看门狗状态</span>
+          <span class="spacer"></span>
+          <span id="wdMode">全天候 · 每 <i>--</i> 秒一轮</span>
+        </div>
+        <div class="wd-foot cb">
+          <span id="gdLine">熔断状态读不到</span>
+          <span class="spacer"></span>
+          <span id="gdFoot">窗口 -- 分钟 · 阈值 -- 条</span>
+          <span id="gdLast">--</span>
+        </div>
+      </div>
       <div class="st-sec">HOST · 宿主负载</div>
       <div class="st-grid" id="stHost"></div>
       <div class="st-sec">TREND · 趋势（<span id="trRange">24</span> 小时）</div>
@@ -566,6 +718,8 @@
         <button data-v="group" title="同类型的合并成一堆，点开看每一次的时间与堆栈">分类</button>
         <button data-v="time" title="不归堆，一条一条按时间从新到旧排，每条都标时间">时间</button>
       </div>
+      <span class="er-fix-note" id="erFixNote"></span>
+      <button class="btn primary" id="erFix" title="把今天的报错按规则过一遍：能修的自己修（重载插件 / 截采样 / checkpoint / 拉起链路），修不了的标出来告诉你该动哪儿">检查并修理</button>
       <button class="btn" id="erCopy">复制</button>
       <button class="btn" id="erRefresh">刷新</button>
     </div>
@@ -1017,7 +1171,7 @@
     var box = document.getElementById("stAdapters");
     box.innerHTML = "";
     if (!list.length) {
-      box.appendChild(el("div", "st-empty", "没有读到适配器配置"));
+      box.appendChild(el("div", "st-empty", "未获取到适配器配置"));
       return;
     }
     list.forEach(function (a) {
@@ -1042,7 +1196,7 @@
     var box = document.getElementById("stHost");
     box.innerHTML = "";
     if (!h || !h.ok) {
-      box.appendChild(el("div", "st-empty", "宿主状态读不到：" + ((h && h.msg) || "未知原因")));
+      box.appendChild(el("div", "st-empty", "宿主状态不可用：" + ((h && h.msg) || "未知原因")));
       return;
     }
     var body = card(box, "CPU", h.cpu + "%",
@@ -1305,6 +1459,40 @@
     var badge = u.enabled ? (busy ? "检查中" : "开启") : "关闭";
     var body = card(box, "自动更新 · 每 " + u.interval_h + " 小时", badge, cls, cls);
     kv(body, "状态", u.enabled ? (busy ? "正在查/正在换" : "待命") : "已关闭（只查看，不换）");
+    var ivRow = el("div", "kv");
+    ivRow.appendChild(el("span", null, "间隔"));
+    var ivSel = document.createElement("select");
+    ivSel.className = "upd-iv";
+    [[1, "1 小时"], [2, "2 小时"], [3, "3 小时"], [6, "6 小时"], [12, "12 小时"], [23, "23 小时（上限）"]]
+      .forEach(function (o) {
+        var op = document.createElement("option");
+        op.value = String(o[0]); op.textContent = o[1];
+        if (o[0] === u.interval_h) op.selected = true;
+        ivSel.appendChild(op);
+      });
+    if (!ivSel.value) {
+      var op = document.createElement("option");
+      op.value = String(u.interval_h);
+      op.textContent = u.interval_h + " 小时（当前）";
+      ivSel.appendChild(op);
+      ivSel.value = String(u.interval_h);
+    }
+    ivSel.addEventListener("change", function () {
+      var h = parseInt(ivSel.value, 10);
+      fetch(API + "/updater/settings", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ update_interval_hours: h }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.status === "ok") { toast("每 " + h + " 小时查一次更新，已保存"); loadStatus(); }
+          else toast((res && res.msg) || "没存上", true);
+        })
+        .catch(function () { toast("设置接口没生效", true); });
+    });
+    ivRow.appendChild(ivSel);
+    body.appendChild(ivRow);
     kv(body, "上次检查", u.last_check_at || "-");
     kv(body, "下次检查", u.enabled ? (u.next_check_at || "-") : "已关闭");
     kv(body, "上次结果", u.last_result || "-");
@@ -2015,6 +2203,173 @@
       .catch(function () { toast("诊断包生成失败，接口没返回数据", true); });
   }
 
+  /* ===== 看门狗面板：最后防线的脸面 =====
+     它不是 Kira 的一部分，所以这里只读它写在盘上的心跳，不假装自己在管它。 */
+  var WD_LAYER_NAME = {
+    kira_port: "主进程端口", kira_proc: "主进程存活", adapter_port: "适配器链路",
+  };
+  // 磁盘/内存下面 HOST 那块已经在报了，这里不再重复占位；它们照样参与判定，只是不占灯
+  var WD_LAYER_HIDE = { disk: 1, mem: 1 };
+
+  function wdRender(d) {
+    var card = document.getElementById("wdCard");
+    var tag = document.getElementById("wdTag");
+    var verdict = document.getElementById("wdVerdict");
+    if (!card || !tag || !verdict) return;
+
+    var st = d || {};
+    var running = !!st.running;
+    var state = st.state || {};
+    var layers = state.layers || {};
+    var bad = state.bad || Object.keys(layers).filter(function (k) { return layers[k] && layers[k].ok === false; });
+    var v = state.verdict || (running ? "healthy" : "unknown");
+
+    // 三层判定：活着且没毛病 / 活着但有层断了 / 压根没在跑
+    var mode = "armed", label = "ARMED", tagTxt = "已就绪";
+    if (!running) { mode = "down"; label = "OFFLINE"; tagTxt = "未运行"; }
+    else if (bad.length) { mode = "degraded"; label = "DEGRADED"; tagTxt = "部分异常"; }
+    else if (v === "down") { mode = "down"; label = "DOWN"; tagTxt = "判定异常"; }
+
+    card.className = "wd-card " + mode;
+    tag.className = "wd-tag " + mode;
+    tag.textContent = tagTxt;
+    verdict.textContent = label;
+
+    var src = document.getElementById("wdSrc");
+    if (src) {
+      var envLabel = (state.env && state.env.label) || "独立进程";
+      src.textContent = running
+        ? envLabel + (state.pid ? " · pid " + state.pid : "")
+        : envLabel.replace("独立进程", "未运行");
+      src.title = (state.env && state.env.platform) || "";
+    }
+
+    var l2 = document.getElementById("wdL2");
+    if (l2) {
+      l2.innerHTML = "";
+      var age = st.age_sec;
+      var sec = document.createElement("span");
+      sec.innerHTML = "心跳 <i>" + (age == null ? "--" :
+        (age < 60 ? age + " 秒前" : (age < 3600 ? Math.floor(age / 60) + " 分钟前"
+          : Math.floor(age / 3600) + " 小时前"))) + "</i>";
+      l2.appendChild(sec);
+      var iv = parseInt((st.cfg || {}).interval || 0, 10);
+      var nx = document.createElement("span");
+      var nxTxt = "--";
+      if (running && iv && age != null) {
+        var left = iv - age;
+        if (left <= 5) nxTxt = "即将执行";
+        else if (left < 60) nxTxt = "约 " + left + " 秒后";
+        else nxTxt = "约 " + Math.round(left / 60) + " 分钟后";
+      } else if (running && iv) {
+        nxTxt = "每 " + (iv >= 60 ? Math.round(iv / 60) + " 分钟" : iv + " 秒") + "一轮";
+      }
+      nx.innerHTML = "下一轮 <i>" + nxTxt + "</i>";
+      l2.appendChild(nx);
+      if (state.at_text) {
+        var t = document.createElement("span");
+        t.innerHTML = "上次判定 <i>" + String(state.at_text).slice(11) + "</i>";
+        l2.appendChild(t);
+      }
+    }
+
+    var box = document.getElementById("wdLayers");
+    if (box) {
+      box.innerHTML = "";
+      var keys = Object.keys(layers).filter(function (k) { return !WD_LAYER_HIDE[k]; });
+      if (!keys.length) {
+        var e = document.createElement("div");
+        e.className = "wd-layer";
+        e.innerHTML = "<i></i><b>尚未执行</b><small>点击「立即自检」执行一次</small>";
+        box.appendChild(e);
+      }
+      keys.forEach(function (k) {
+        var it = layers[k] || {};
+        var row = document.createElement("div");
+        row.className = "wd-layer" + (it.ok === false ? " bad" : "");
+        var nm = WD_LAYER_NAME[k] || k;
+        row.innerHTML = "<i></i><b>" + nm + "</b><small>" + String(it.msg || "").replace(/[<>&]/g, "") + "</small>";
+        row.title = nm + "：" + (it.msg || "");
+        box.appendChild(row);
+      });
+    }
+
+    var foot = document.getElementById("wdFootNote");
+    if (foot) {
+      if (!st.script_ok) {
+        foot.textContent = "看门狗脚本不存在：" + (st.script || "scripts/watchdog.py");
+      } else if (!running) {
+        foot.textContent = "看门狗未启动 · " + wdStartHint(state.env);
+      } else {
+        foot.textContent = "运行中 · 不依赖模型与 QQ，二者中断仍可自愈";
+      }
+      foot.title = foot.textContent;
+    }
+
+    // 这里是全天候的：间隔按秒算，不给人关的机会（关掉就只是 loop 退出，面板会掉成 OFFLINE）
+    var modeEl = document.getElementById("wdMode");
+    if (modeEl) {
+      var sec2 = parseInt((st.cfg || {}).interval || 0, 10);
+      modeEl.innerHTML = "全天候 · 每 <i>" + (sec2 || "--") + "</i> 秒执行一轮";
+    }
+  }
+
+  function wdStartHint(env) {
+    var k = (env && env.key) || "";
+    if (k === "termux") return "在 Termux 执行 python watchdog.py --loop";
+    if (k === "windows") return "双击 start_watchdog.bat，或用任务计划程序常驻";
+    if (k === "macos") return "python3 scripts/watchdog.py --loop（可用 launchd 常驻）";
+    if (k === "docker") return "在容器内 python3 scripts/watchdog.py --loop，或用 supervisor";
+    return "python3 scripts/watchdog.py --loop（可用 systemd / crond 常驻）";
+  }
+
+  function loadWatchdog() {
+    fetch(API + "/watchdog", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok") throw new Error((res && res.msg) || "读不到");
+        wdRender(res.data || {});
+      })
+      .catch(function () {
+        var card = document.getElementById("wdCard");
+        var foot = document.getElementById("wdFootNote");
+        if (card) card.className = "wd-card down";
+        var tag = document.getElementById("wdTag");
+        if (tag) { tag.className = "wd-tag down"; tag.textContent = "读不到"; }
+        var verdict = document.getElementById("wdVerdict");
+        if (verdict) verdict.textContent = "UNKNOWN";
+        if (foot) foot.textContent = "接口还没生效（重载插件），或自愈没挂起来";
+      });
+  }
+
+  function wdFire() {
+    var btn = document.querySelector("#wdSeg button[data-v='check']");
+    if (btn) { btn.disabled = true; btn.textContent = "自检中…"; }
+    fetch(API + "/watchdog/run", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "panel" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok") throw new Error((res && res.msg) || "启动失败");
+        toast(res.msg || "已开始自检");
+        setTimeout(loadWatchdog, 2500);
+        setTimeout(loadWatchdog, 7000);
+        setTimeout(function () {
+          if (btn) { btn.disabled = false; btn.textContent = "立即自检"; }
+        }, 9000);
+      })
+      .catch(function (e) {
+        toast("自检没起来：" + e.message, true);
+        if (btn) { btn.disabled = false; btn.textContent = "立即自检"; }
+      });
+  }
+
+  var wdSegCheck = document.querySelector("#wdSeg button[data-v='check']");
+  if (wdSegCheck) wdSegCheck.addEventListener("click", wdFire);
+  loadWatchdog();
+
   function loadStatus() {
     var ver = document.getElementById("stVer");
     fetch(API + "/status", { credentials: "include" })
@@ -2032,6 +2387,7 @@
         renderFramework(d.framework_updater || null);
         renderHost(d.host || {});
         renderAlerts(d.alerts || []);
+        loadWatchdog();
         feedIdle(d);
         feedStage(d);
       })
@@ -2555,6 +2911,227 @@
         (errView === "time" ? "，已按时间从新到旧排" : "") + "，点复制能拿到这份"));
     }
   }
+
+  /* ===== 检查并修理：和插件更新那颗按钮一个脾气，点完就走，不挂着等 ===== */
+  var fixBusy = false, fixWatch = null;
+
+  function fixNote(text, cls) {
+    var n = document.getElementById("erFixNote");
+    if (!n) return;
+    n.textContent = text || "";
+    n.className = "er-fix-note" + (cls ? " " + cls : "");
+    n.title = text || "";
+  }
+
+  function loadRepair() {
+    fetch(API + "/repair", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok" || !res.data) return;
+        var d = res.data, wd = d.watchdog || {};
+        if (d.busy) { fixNote("修理中…"); return; }
+        if (d.last_summary) {
+          fixNote((d.last_run ? String(d.last_run).slice(11, 16) + " " : "") + d.last_summary,
+            /修了|清了|截了|已重载/.test(d.last_summary) ? "ok" : "");
+        } else if (d.running) {
+          fixNote("自动查着，没动手就说明没事");
+        } else {
+          fixNote(wd.running ? "自愈待命中" : "自愈未启动");
+        }
+      })
+      .catch(function () {});
+  }
+
+  function stopFixWatch() {
+    if (fixWatch) { clearInterval(fixWatch); fixWatch = null; }
+    fixBusy = false;
+    var b = document.getElementById("erFix");
+    if (b) { b.disabled = false; b.textContent = "检查并修理"; }
+  }
+
+  function runRepair() {
+    if (fixBusy) return;
+    fixBusy = true;
+    var b = document.getElementById("erFix");
+    b.disabled = true;
+    b.textContent = "修理中…";
+    fixNote("正在过一遍今天的报错…");
+    fetch(API + "/repair/run", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "manual" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok") throw new Error((res && res.msg) || "启动失败");
+        toast(res.msg || "开始检查并修理");
+        var waited = 0;
+        fixWatch = setInterval(function () {
+          waited += 3;
+          fetch(API + "/repair", { credentials: "include" })
+            .then(function (r) { return r.json(); })
+            .then(function (rr) {
+              var dd = (rr && rr.data) || {};
+              if (!dd.busy) {
+                stopFixWatch();
+                loadRepair();
+                var msg = dd.last_summary || "这一轮没有能下手的地方";
+                toast(msg, /没|不能|失败/.test(msg));
+                loadErrors("manual");
+              } else if (waited >= 90) {
+                stopFixWatch();
+                fixNote("还在修，过会儿自己会好");
+              }
+            })
+            .catch(function () { if (waited >= 90) stopFixWatch(); });
+        }, 3000);
+      })
+      .catch(function (e) {
+        stopFixWatch();
+        toast("修理没起来：" + e.message, true);
+        fixNote("接口没生效（重载插件）", "bad");
+      });
+  }
+
+  /* ===== 熔断：谁在炸就先摘谁，聊天别跟着一起死 ===== */
+  var gdBusy = false;
+
+  function gdRender(d) {
+    var mark = document.getElementById("gdMark");
+    var tag = document.getElementById("gdTag");
+    var body = document.getElementById("gdBody");
+    if (!mark || !body) return;
+
+    var cfg = d.settings || {}, last = d.last || {}, plan = last.plan || {};
+    var now = Date.now() / 1000;
+
+    var tripped = Object.keys(d.circuits || {}).map(function (pid) {
+      var c = d.circuits[pid] || {};
+      var left = Math.round((Number(c.restore_at || 0) - now) / 60);
+      return {
+        pid: pid, reason: c.reason || "", sample: c.sample || "",
+        by: c.auto === false ? "手动" : "自己判的",
+        human: !!c.needs_human,
+        restore_in_min: left > 0 ? left : 0, at: c.at || "",
+      };
+    }).sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+
+    var hot = Object.keys(plan).filter(function (pid) {
+      return plan[pid] && plan[pid].hot;
+    }).map(function (pid) {
+      var r = plan[pid];
+      return { pid: pid, err: r.err || 0, strong: r.strong || 0, sample: r.sample || "" };
+    }).sort(function (a, b) { return b.err - a.err; });
+
+    var on = cfg.guard_auto !== false;
+
+    mark.className = "wd-cb" + (!on ? " off" : (tripped.length ? " hot" : ""));
+    mark.title = "插件熔断 · 点一下过一遍日志，谁在炸就先摘谁\n" +
+      "窗口 " + (cfg.guard_window_min || "--") + " 分钟 / 阈值 " +
+      (cfg.guard_min_errors || "--") + " 条" +
+      (last.at ? "\n上次巡查 " + String(last.at).slice(5, 16) : "");
+    tag.textContent = !on ? "已关" :
+      (tripped.length ? "已摘 " + tripped.length : (hot.length ? "盯着 " + hot.length : "待命中"));
+
+    var line = document.getElementById("gdLine");
+    if (line) {
+      line.textContent = !on ? "总开关关着，不会自己动手" :
+        tripped.length ? "先保住对话，问题留着慢慢修" :
+        hot.length ? "有 " + hot.length + " 个快到线了，还不到动手的时候" :
+        "没谁在炸，摘插件这事宁可不动手";
+      line.title = line.textContent;
+    }
+
+    var hours = Number(cfg.guard_restore_hours || 0);
+    var foot = document.getElementById("gdFoot");
+    if (foot) foot.textContent = "窗口 " + (cfg.guard_window_min || "--") + " 分钟 · 阈值 " +
+      (cfg.guard_min_errors || "--") + " 条 · " + (hours ? "停满 " + hours + " 小时放回" : "不自动放回");
+    var lastEl = document.getElementById("gdLast");
+    if (lastEl) lastEl.textContent = last.at ? "上次 " + String(last.at).slice(11, 16) : "--";
+
+    body.innerHTML = "";
+    tripped.forEach(function (t) {
+      var row = el("div", "gd-row");
+      var p = el("div", "p", t.pid);
+      p.title = (t.reason || "") + (t.sample ? "\n" + t.sample : "");
+      row.appendChild(p);
+      row.appendChild(el("div", "c trip", t.human ? "停太多次" : t.by));
+      row.appendChild(el("div", "c ok", t.human ? "等人看" :
+        (t.restore_in_min ? t.restore_in_min + " 分后放回" : "等放回")));
+      var btn = el("button", null, "放回");
+      btn.title = "立刻重新启用 " + t.pid;
+      btn.addEventListener("click", function () { gdRestore(t.pid); });
+      row.appendChild(btn);
+      body.appendChild(row);
+    });
+    hot.filter(function (h) {
+      return !tripped.some(function (t) { return t.pid === h.pid; });
+    }).forEach(function (h) {
+      var row = el("div", "gd-row");
+      var p = el("div", "p", h.pid);
+      p.title = h.sample || "";
+      row.appendChild(p);
+      row.appendChild(el("div", "c", "还在观察"));
+      row.appendChild(el("div", "c bad", "E " + h.err + (h.strong ? " · 硬 " + h.strong : "")));
+      row.appendChild(el("div", "c", ""));
+      body.appendChild(row);
+    });
+  }
+
+  function loadGuard() {
+    fetch(API + "/guard", { credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok" || !res.data) return;
+        gdRender(res.data);
+      })
+      .catch(function () {});
+  }
+
+  function gdRun() {
+    if (gdBusy) return;
+    gdBusy = true;
+    toast("过一遍日志，看谁在炸");
+    fetch(API + "/guard/run", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: "{}",
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== "ok") throw new Error((res && res.msg) || "巡查没起来");
+        var n = ((res.data && res.data.done) || []).filter(function (x) { return x.ok; }).length;
+        toast(n ? "摘了 " + n + " 个插件" : "这一轮不用动手", false);
+        loadGuard();
+      })
+      .catch(function (e) { toast("巡查失败：" + e.message, true); })
+      .then(function () { gdBusy = false; });
+  }
+
+  function gdRestore(pid) {
+    fetch(API + "/guard/restore", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: pid }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        toast((res && res.msg) || (res && res.status === "ok" ? "放回了" : "放回失败"),
+          !res || res.status !== "ok");
+        loadGuard();
+      })
+      .catch(function (e) { toast("放回失败：" + e.message, true); });
+  }
+
+  (function () {
+    var mark = document.getElementById("gdMark");
+    if (mark) mark.addEventListener("click", gdRun);
+    loadGuard();
+    setInterval(loadGuard, 30000);
+  })();
+
+  document.getElementById("erFix").addEventListener("click", runRepair);
+  loadRepair();
+  setInterval(function () { if (!fixBusy) loadRepair(); }, 60000);
 
   document.getElementById("errBtn").addEventListener("click", toggleErrors);
   document.getElementById("erRefresh").addEventListener("click", function () { loadErrors("manual"); });
